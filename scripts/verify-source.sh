@@ -31,6 +31,8 @@ require_value "$(git -C "$SOURCE_DIR/kernel_platform/soc-repo" rev-parse HEAD)" 
   "$SOC_COMMIT" "SoC commit"
 require_value "$(git -C "$SOURCE_DIR" rev-parse HEAD)" \
   "$DEVICE_COMMIT" "device/modules commit"
+require_value "$(git -C "$SOURCE_DIR/kernel_platform/prebuilts/clang/host/linux-x86" rev-parse HEAD)" \
+  "$AOSP_CLANG_COMMIT" "AOSP Clang commit"
 
 makefile="$SOURCE_DIR/kernel_platform/common/Makefile"
 constants="$SOURCE_DIR/kernel_platform/common/build.config.constants"

@@ -114,7 +114,13 @@ jobs:
           esac
           bazel_bin=prebuilts/kernel-build-tools/bazel/linux-x86_64/bazel
           test "$($bazel_bin --version)" = "bazel $EXPECTED_BAZEL_VERSION"
-          test -d "prebuilts/clang/host/linux-x86/clang-$EXPECTED_CLANG_VERSION"
+          clang_bin="prebuilts/clang/host/linux-x86/clang-$EXPECTED_CLANG_VERSION/bin/clang"
+          test -x "$clang_bin"
+          "$clang_bin" --version | tee "$GITHUB_WORKSPACE/clang-version.txt"
+          grep -Fq "Android ($EXPECTED_CLANG_BUILD," \
+            "$GITHUB_WORKSPACE/clang-version.txt"
+          grep -Fq "based on $EXPECTED_CLANG_VERSION) clang version 19.0.1" \
+            "$GITHUB_WORKSPACE/clang-version.txt"
           grep -Fq '_CC_TOOLCHAIN_TYPE = Label(' \
             prebuilts/clang/host/linux-x86/kleaf/clang_toolchain.bzl
 
@@ -210,6 +216,7 @@ jobs:
           mkdir -p "$KLEAF_DIST"
           tools/bazel run \
             --config=release \
+            --//build/kernel/kleaf:zstd_dwarf_compression \
             --incompatible_sandbox_hermetic_tmp=false \
             --noenable_workspace \
             --override_module=rules_kotlin=%workspace%/build/kernel/kleaf/bzlmod/fake_modules/rules_kotlin \
@@ -235,6 +242,9 @@ jobs:
           test -s final.config
           variant='${{ inputs.kernel_variant }}'
           bash scripts/verify-config.sh final.config "$variant"
+          grep -Fqx 'CONFIG_DEBUG_INFO_COMPRESSED_ZSTD=y' final.config
+          grep -Fq "CONFIG_CC_VERSION_TEXT=\"Android ($EXPECTED_CLANG_BUILD," \
+            final.config
 
           if [[ -s "$KLEAF_DIST/kernel.release" ]]; then
             cp "$KLEAF_DIST/kernel.release" kernelrelease.txt
@@ -291,7 +301,8 @@ jobs:
           cp manifest.lock official-manifest.xml pinned-manifest.xml \
             resolved-manifest.xml \
             final.config kernelrelease.txt \
-            image-file.txt image.sha256 stock-baseline.txt build.log dist/
+            image-file.txt image.sha256 stock-baseline.txt build.log \
+            clang-version.txt dist/
           cp "$STOCK_BUILD_COMPAT_PATCH" dist/
 
       - name: Upload verified baseline artifact

@@ -11,7 +11,7 @@ DEVICE_REPO=https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_
 DEVICE_COMMIT=d447f713d6403f707a2910383495f4ada98cfa4d
 
 AOSP_CLANG_REPO=https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86
-AOSP_CLANG_COMMIT=a5ea87db9244cecf189ec9f9b11d55c6c1bdf07e
+AOSP_CLANG_COMMIT=77c95e8253c2c82ffd4fee92c0ad9f5ac1e8ca04
 AOSP_KERNEL_BUILD_TOOLS_REPO=https://android.googlesource.com/kernel/prebuilts/build-tools
 AOSP_KERNEL_BUILD_TOOLS_COMMIT=3c5e4f14b451ec85167c38b917d2459687abd7f4
 AOSP_LIBCAP_REPO=https://android.googlesource.com/platform/external/libcap
@@ -23,6 +23,7 @@ EXPECTED_KERNEL_VERSION=6.12.38
 EXPECTED_ANDROID_BRANCH=android16-6.12
 EXPECTED_KMI_GENERATION=5
 EXPECTED_CLANG_VERSION=r536225
+EXPECTED_CLANG_BUILD=14043575
 EXPECTED_BAZEL_VERSION=8.0.0
 EXPECTED_RUST_VERSION=1.82.0
 
