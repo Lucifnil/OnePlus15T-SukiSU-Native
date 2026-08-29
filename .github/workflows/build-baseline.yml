@@ -1,0 +1,206 @@
+name: Build OnePlus 15T official clean baseline
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: Publish the verified AnyKernel3 baseline as a prerelease
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: oneplus15t-official-baseline-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  TZ: Asia/Shanghai
+  SOURCE_DIR: ${{ github.workspace }}/work/source
+  KLEAF_DIST: ${{ github.workspace }}/kleaf-dist
+
+jobs:
+  build:
+    name: Official clean 4K GKI
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+
+    steps:
+      - name: Checkout build project
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+
+      - name: Load immutable source manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -a
+          source manifest.lock
+          set +a
+          while IFS='=' read -r key value; do
+            [[ -z "$key" ]] && continue
+            printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
+          done < manifest.lock
+
+      - name: Show runner storage
+        shell: bash
+        run: df -h
+
+      - name: Install host dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            bc binutils bison build-essential ca-certificates cpio dwarves \
+            file flex git libdw-dev libelf-dev libssl-dev lld llvm python3 \
+            repo rsync unzip zip
+
+      - name: Sync pinned OnePlus 15T source tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$SOURCE_DIR"
+          cd "$SOURCE_DIR"
+          repo init \
+            -u "$MANIFEST_REPO" \
+            -b "$MANIFEST_BRANCH" \
+            -m "$MANIFEST_FILE" \
+            --depth=1 \
+            --no-clone-bundle
+          bash "$GITHUB_WORKSPACE/scripts/pin-source.sh" \
+            "$MANIFEST_REPO" "$SOURCE_DIR/.repo/manifests" \
+            "$MANIFEST_COMMIT" manifest
+          test "$(readlink -f .repo/manifest.xml)" = \
+            "$(readlink -f .repo/manifests/$MANIFEST_FILE)"
+          repo sync \
+            -c \
+            --no-tags \
+            --no-clone-bundle \
+            --fail-fast \
+            -j2
+          bash "$GITHUB_WORKSPACE/scripts/pin-source.sh" \
+            "$COMMON_REPO" "$SOURCE_DIR/kernel_platform/common" \
+            "$COMMON_COMMIT" common
+          bash "$GITHUB_WORKSPACE/scripts/pin-source.sh" \
+            "$SOC_REPO" "$SOURCE_DIR/kernel_platform/soc-repo" \
+            "$SOC_COMMIT" SoC
+          bash "$GITHUB_WORKSPACE/scripts/pin-source.sh" \
+            "$DEVICE_REPO" "$SOURCE_DIR" "$DEVICE_COMMIT" device/modules
+          bash "$GITHUB_WORKSPACE/scripts/verify-source.sh" "$SOURCE_DIR"
+          repo manifest -r -o "$GITHUB_WORKSPACE/resolved-manifest.xml"
+          printf 'SOURCE_DATE_EPOCH=%s\n' \
+            "$(git -C "$SOURCE_DIR/kernel_platform/common" show -s --format=%ct HEAD)" \
+            >> "$GITHUB_ENV"
+          df -h
+
+      - name: Build official Common GKI with Kleaf
+        shell: bash
+        working-directory: ${{ github.workspace }}/work/source/kernel_platform
+        env:
+          KBUILD_BUILD_USER: oneplus15t-native
+          KBUILD_BUILD_HOST: github-actions
+          OPLUS_USE_PREBUILT_BOOTIMAGE: "no"
+        run: |
+          set -euo pipefail
+          mkdir -p "$KLEAF_DIST"
+          tools/bazel run \
+            --config=release \
+            //common:kernel_aarch64_dist \
+            -- \
+            --destdir="$KLEAF_DIST" 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
+          if grep -Fq 'Using GKI vmlinux from:' "$GITHUB_WORKSPACE/build.log"; then
+            echo 'ERROR: Oplus prebuilt vmlinux replaced the source-built kernel' >&2
+            exit 1
+          fi
+
+      - name: Verify source-built baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="$KLEAF_DIST/Image"
+          test -s "$image"
+          file "$image" | tee image-file.txt
+          "$SOURCE_DIR/kernel_platform/common/scripts/extract-ikconfig" \
+            "$image" > final.config
+          test -s final.config
+          bash scripts/verify-config.sh final.config
+
+          if [[ -s "$KLEAF_DIST/kernel.release" ]]; then
+            cp "$KLEAF_DIST/kernel.release" kernelrelease.txt
+          else
+            strings "$image" | \
+              grep -m1 -E '^Linux version 6\.12\.38-' | \
+              sed -E 's/^Linux version ([^ ]+).*/\1/' > kernelrelease.txt
+          fi
+          grep -Eq '^6\.12\.38-android16-5.*-4k$' kernelrelease.txt
+
+          bash scripts/verify-source.sh "$SOURCE_DIR"
+          sha256sum "$image" | tee image.sha256
+
+      - name: Package verified AnyKernel3 baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          ak3="$GITHUB_WORKSPACE/work/AnyKernel3"
+          git init -q "$ak3"
+          git -C "$ak3" remote add origin "$ANYKERNEL_REPO"
+          git -C "$ak3" fetch --depth=1 --no-tags origin "$ANYKERNEL_COMMIT"
+          git -C "$ak3" checkout -q --detach FETCH_HEAD
+          test "$(git -C "$ak3" rev-parse HEAD)" = "$ANYKERNEL_COMMIT"
+
+          cp "$KLEAF_DIST/Image" "$ak3/Image"
+          cp packaging/anykernel.sh "$ak3/anykernel.sh"
+          rm -rf "$ak3/.git"
+
+          mkdir -p dist
+          package="OnePlus15T-OFFICIAL-CLEAN-6.12.38-baseline-r${GITHUB_RUN_NUMBER}.zip"
+          (cd "$ak3" && zip -q -r "$GITHUB_WORKSPACE/dist/$package" .)
+          (cd dist && sha256sum "$package" > SHA256SUMS)
+          cp manifest.lock resolved-manifest.xml final.config kernelrelease.txt \
+            image-file.txt image.sha256 build.log dist/
+
+      - name: Upload verified baseline artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: OnePlus15T-official-clean-baseline-${{ github.run_number }}
+          path: dist/
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Create Chinese-first baseline prerelease
+        if: ${{ inputs.publish_release }}
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
+        with:
+          tag_name: official-baseline-6.12.38-r${{ github.run_number }}
+          name: OnePlus 15T 官方纯净基线 r${{ github.run_number }}
+          prerelease: true
+          generate_release_notes: false
+          body: |
+            OnePlus 15T（PLZ110）官方源码纯净基线，第一次真机启动验证用。
+
+            - 一加官方 Common GKI：6.12.38 / Android 16 / 4K
+            - 官方目标：`//common:kernel_aarch64_dist`
+            - 无 Root、无 KernelSU、无 SukiSU
+            - 无 SUSFS、KPM、ADIOS、ReKernel、TCP Brutal 或其他性能补丁
+            - 不使用 Oplus 预编译 vmlinux，Image 由本次源码构建生成
+            - 刷写分区：boot；AnyKernel3 保留原 boot ramdisk 和检测到的 vbmeta 标志
+
+            本版只验证官方源码、KMI、Kleaf 和刷写链。它不会提供 Root。请保留当前可启动的 boot/init_boot 镜像和 fastboot 恢复手段；确认能连续正常启动后，才进入原生 SukiSU Built-in 阶段。
+
+            ---
+
+            Clean official-source boot baseline for OnePlus 15T (PLZ110).
+
+            No Root, KernelSU, SukiSU, SUSFS, KPM or third-party kernel features. Built directly from the pinned OnePlus 6.12.38 Common GKI target with Kleaf. This prerelease validates only the official source, KMI, build and flashing chain.
+          files: |
+            dist/*.zip
+            dist/SHA256SUMS
+            dist/manifest.lock
+            dist/resolved-manifest.xml
+            dist/final.config
+            dist/kernelrelease.txt
+            dist/image-file.txt
+            dist/image.sha256
+          fail_on_unmatched_files: true
