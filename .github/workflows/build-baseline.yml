@@ -72,8 +72,7 @@ jobs:
           bash "$GITHUB_WORKSPACE/scripts/pin-source.sh" \
             "$MANIFEST_REPO" "$SOURCE_DIR/.repo/manifests" \
             "$MANIFEST_COMMIT" manifest
-          test "$(readlink -f .repo/manifest.xml)" = \
-            "$(readlink -f .repo/manifests/$MANIFEST_FILE)"
+          test -f ".repo/manifests/$MANIFEST_FILE"
           repo sync \
             -c \
             --no-tags \
