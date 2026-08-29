@@ -1,11 +1,6 @@
 diff --git a/scripts/Makefile.vmlinux b/scripts/Makefile.vmlinux
-index a43797dd2..39b280cdf 100644
+index a43797dd2..c66f23e9f 100644
 --- a/scripts/Makefile.vmlinux
 +++ b/scripts/Makefile.vmlinux
-@@ -43,5 +43,6 @@ targets += vmlinux
- vmlinux: scripts/link-vmlinux.sh vmlinux.o $(KBUILD_LDS) FORCE
- 	+$(call if_changed_dep,link_vmlinux)
+@@ -45,0 +46 @@ vmlinux: scripts/link-vmlinux.sh vmlinux.o $(KBUILD_LDS) FORCE
 +	$(Q)cp $(objtree)/vmlinux $(objtree)/vmlinux_oki
- 
- ifdef CONFIG_BUILDTIME_TABLE_SORT
- vmlinux: scripts/sorttable

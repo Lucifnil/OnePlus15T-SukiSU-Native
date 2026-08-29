@@ -125,9 +125,9 @@ jobs:
             rm -f "$stock_makefile_backup" "$msm_extension"
           }
           trap cleanup EXIT
-          git -C common apply --check \
+          git -C common apply --check --unidiff-zero \
             "$GITHUB_WORKSPACE/$STOCK_BUILD_COMPAT_PATCH"
-          git -C common apply --whitespace=error-all \
+          git -C common apply --unidiff-zero --whitespace=error-all \
             "$GITHUB_WORKSPACE/$STOCK_BUILD_COMPAT_PATCH"
           grep -Fqx $'\t$(Q)cp $(objtree)/vmlinux $(objtree)/vmlinux_oki' \
             "$stock_makefile"
