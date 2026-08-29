@@ -102,6 +102,8 @@ jobs:
           bazel_bin=prebuilts/kernel-build-tools/bazel/linux-x86_64/bazel
           test "$($bazel_bin --version)" = "bazel $EXPECTED_BAZEL_VERSION"
           test -d "prebuilts/clang/host/linux-x86/clang-$EXPECTED_CLANG_VERSION"
+          grep -Fq '_CC_TOOLCHAIN_TYPE = Label(' \
+            prebuilts/clang/host/linux-x86/kleaf/clang_toolchain.bzl
           mkdir -p "$KLEAF_DIST"
           tools/bazel run \
             --config=release \
