@@ -196,7 +196,25 @@ jobs:
             test "$(git -C "$ksu_root" rev-parse "$SUKISU_TAG^{commit}")" = \
               "$SUKISU_COMMIT"
             git -C "$ksu_root" checkout -q -b main "$SUKISU_COMMIT"
+            test "$(git -C "$ksu_root" rev-list --count HEAD)" = \
+              "$SUKISU_COMMIT_COUNT"
+            test "$((40000 + SUKISU_COMMIT_COUNT - 2815))" = \
+              "$EXPECTED_SUKISU_VERSION_CODE"
             test ! -e "$ksu_root/kernel/susfs.c"
+            test "$(sha256sum "$GITHUB_WORKSPACE/$SUKISU_BUILD_VERSION_PATCH" | awk '{print $1}')" = \
+              "$SUKISU_BUILD_VERSION_PATCH_SHA256"
+            git -C "$ksu_root" apply --check --unidiff-zero \
+              "$GITHUB_WORKSPACE/$SUKISU_BUILD_VERSION_PATCH"
+            git -C "$ksu_root" apply --unidiff-zero --whitespace=error-all \
+              "$GITHUB_WORKSPACE/$SUKISU_BUILD_VERSION_PATCH"
+            grep -Fqx "LOCAL_COUNT     := $SUKISU_COMMIT_COUNT" \
+              "$ksu_root/kernel/Kbuild"
+            grep -Fqx "VERSION_TAG     := ${SUKISU_TAG#v}" \
+              "$ksu_root/kernel/Kbuild"
+            grep -Fqx \
+              "KSU_VERSION_FULL := v${SUKISU_TAG#v}-${SUKISU_COMMIT:0:8}@main" \
+              "$ksu_root/kernel/Kbuild"
+            git -C "$ksu_root" diff --check
 
             ksu_driver_makefile_backup=$(mktemp)
             ksu_driver_kconfig_backup=$(mktemp)
@@ -228,6 +246,11 @@ jobs:
           if grep -Fq 'Using GKI vmlinux from:' "$GITHUB_WORKSPACE/build.log"; then
             echo 'ERROR: Oplus prebuilt vmlinux replaced the source-built kernel' >&2
             exit 1
+          fi
+          if [[ "$variant" == sukisu_builtin ]]; then
+            grep -Fq -- \
+              "-- SukiSU-Ultra version: $EXPECTED_SUKISU_VERSION_CODE [v${SUKISU_TAG#v}-${SUKISU_COMMIT:0:8}@main]" \
+              "$GITHUB_WORKSPACE/build.log"
           fi
 
       - name: Verify source-built baseline
@@ -267,8 +290,9 @@ jobs:
           kernel_variant=$variant
           EOF
           if [[ "$variant" == sukisu_builtin ]]; then
-            printf 'sukisu_tag=%s\nsukisu_commit=%s\n' \
-              "$SUKISU_TAG" "$SUKISU_COMMIT" >> stock-baseline.txt
+            printf 'sukisu_tag=%s\nsukisu_commit=%s\nsukisu_version_code=%s\n' \
+              "$SUKISU_TAG" "$SUKISU_COMMIT" \
+              "$EXPECTED_SUKISU_VERSION_CODE" >> stock-baseline.txt
           fi
 
           bash scripts/verify-source.sh "$SOURCE_DIR"
@@ -305,7 +329,10 @@ jobs:
             image-file.txt image.sha256 stock-baseline.txt build.log \
             clang-version.txt dist/
           cp "$KLEAF_DIST/Module.symvers" dist/
-          cp "$STOCK_BUILD_COMPAT_PATCH" dist/
+          cp "$STOCK_BUILD_COMPAT_PATCH" "$STOCK_SCMVERSION_PATCH" dist/
+          if [[ "$variant" == sukisu_builtin ]]; then
+            cp "$SUKISU_BUILD_VERSION_PATCH" dist/
+          fi
 
       - name: Upload verified baseline artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

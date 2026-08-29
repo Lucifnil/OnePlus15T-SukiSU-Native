@@ -12,6 +12,7 @@ require_file "$CONFIG"
 require_config_y "$CONFIG" CONFIG_ARM64_4K_PAGES
 require_config_y "$CONFIG" CONFIG_CFI_CLANG
 require_config_y "$CONFIG" CONFIG_MODVERSIONS
+require_config_y "$CONFIG" CONFIG_GENDWARFKSYMS
 require_config_y "$CONFIG" CONFIG_MODULE_SCMVERSION
 require_config_y "$CONFIG" CONFIG_MODULE_SIG_PROTECT
 require_config_y "$CONFIG" CONFIG_TRIM_UNUSED_KSYMS
