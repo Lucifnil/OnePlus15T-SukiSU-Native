@@ -16,6 +16,13 @@ require_value "$(sha256sum "$compat_patch" | awk '{print $1}')" \
 grep -Fqx $'+\t$(Q)cp $(objtree)/vmlinux $(objtree)/vmlinux_oki' \
   "$compat_patch" || die 'unexpected stock build compatibility patch'
 
+scmversion_patch="$PROJECT_DIR/$STOCK_SCMVERSION_PATCH"
+require_file "$scmversion_patch"
+require_value "$(sha256sum "$scmversion_patch" | awk '{print $1}')" \
+  "$STOCK_SCMVERSION_PATCH_SHA256" "stock SCM version patch SHA-256"
+grep -Fqx '+                scmversion_prefix="-$android_release-$KMI_GENERATION"' \
+  "$scmversion_patch" || die 'unexpected stock SCM version patch'
+
 require_value "$(git -C "$SOURCE_DIR/kernel_platform/common" rev-parse HEAD)" \
   "$COMMON_COMMIT" "common commit"
 require_value "$COMMON_COMMIT" "$STOCK_BOOT_KERNEL_COMMIT" \

@@ -133,18 +133,25 @@ jobs:
           stock_makefile=common/scripts/Makefile.vmlinux
           stock_makefile_backup=$(mktemp)
           cp "$stock_makefile" "$stock_makefile_backup"
+          stamp_file=build/kernel/kleaf/impl/stamp.bzl
+          stamp_file_backup=$(mktemp)
+          cp "$stamp_file" "$stamp_file_backup"
+          workspace_status=common/workspace_status.json
+          test ! -e "$workspace_status"
           ksu_driver_makefile_backup=
           ksu_driver_kconfig_backup=
           ksu_driver_link=
           cleanup() {
             cp "$stock_makefile_backup" "$stock_makefile"
+            cp "$stamp_file_backup" "$stamp_file"
             if [[ -n "$ksu_driver_makefile_backup" ]]; then
               cp "$ksu_driver_makefile_backup" common/drivers/Makefile
               cp "$ksu_driver_kconfig_backup" common/drivers/Kconfig
               rm -f "$ksu_driver_link" "$ksu_driver_makefile_backup" \
                 "$ksu_driver_kconfig_backup"
             fi
-            rm -f "$stock_makefile_backup" "$msm_extension"
+            rm -f "$stock_makefile_backup" "$stamp_file_backup" \
+              "$workspace_status" "$msm_extension"
           }
           trap cleanup EXIT
           git -C common apply --check --unidiff-zero \
@@ -154,6 +161,21 @@ jobs:
           grep -Fqx $'\t$(Q)cp $(objtree)/vmlinux $(objtree)/vmlinux_oki' \
             "$stock_makefile"
           git -C common diff --check
+
+          # Kleaf officially supports SCMVERSION overrides through this JSON
+          # file. Match the shipping PLZ110 release exactly so stock vendor
+          # modules accept the source-built kernel's ABI release string.
+          git -C .. apply --check --unidiff-zero \
+            "$GITHUB_WORKSPACE/$STOCK_SCMVERSION_PATCH"
+          git -C .. apply --unidiff-zero --whitespace=error-all \
+            "$GITHUB_WORKSPACE/$STOCK_SCMVERSION_PATCH"
+          printf '{"SCMVERSION":"%s"}\n' "$STOCK_SCMVERSION" > \
+            "$workspace_status"
+          grep -Fqx '                scmversion_prefix="-$android_release-$KMI_GENERATION"' \
+            "$stamp_file"
+          grep -Fqx "{\"SCMVERSION\":\"$STOCK_SCMVERSION\"}" \
+            "$workspace_status"
+          git -C .. diff --check
 
           if [[ "$variant" == sukisu_builtin ]]; then
             # Reproduce the official setup.sh integration without executing a
@@ -221,10 +243,7 @@ jobs:
               grep -m1 -E '^Linux version 6\.12\.38-' | \
               sed -E 's/^Linux version ([^ ]+).*/\1/' > kernelrelease.txt
           fi
-          grep -Eq '^6\.12\.38-android16-5.*-4k$' kernelrelease.txt
-          expected_short_commit=${STOCK_BOOT_KERNEL_COMMIT:0:12}
-          grep -Eq "^6\\.12\\.38-android16-5.*g${expected_short_commit}.*-4k$" \
-            kernelrelease.txt
+          test "$(cat kernelrelease.txt)" = "$STOCK_BOOT_KERNEL_RELEASE"
 
           cat > stock-baseline.txt <<EOF
           firmware=$STOCK_FIRMWARE_BUILD
@@ -233,6 +252,7 @@ jobs:
           official_common_commit=$COMMON_COMMIT
           build_compat_source_commit=$STOCK_BUILD_COMPAT_SOURCE_COMMIT
           build_compat_patch_sha256=$STOCK_BUILD_COMPAT_PATCH_SHA256
+          scmversion_patch_sha256=$STOCK_SCMVERSION_PATCH_SHA256
           kernel_variant=$variant
           EOF
           if [[ "$variant" == sukisu_builtin ]]; then

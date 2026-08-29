@@ -1,0 +1,6 @@
+diff --git a/kernel_platform/build/kernel/kleaf/impl/stamp.bzl b/kernel_platform/build/kernel/kleaf/impl/stamp.bzl
+--- a/kernel_platform/build/kernel/kleaf/impl/stamp.bzl
++++ b/kernel_platform/build/kernel/kleaf/impl/stamp.bzl
+@@ -79 +79 @@ def _write_localversion(ctx):
+-                scmversion_prefix="-$android_release-$KMI_GENERATION-$oki_infix"
++                scmversion_prefix="-$android_release-$KMI_GENERATION"
