@@ -104,9 +104,24 @@ jobs:
           test -d "prebuilts/clang/host/linux-x86/clang-$EXPECTED_CLANG_VERSION"
           grep -Fq '_CC_TOOLCHAIN_TYPE = Label(' \
             prebuilts/clang/host/linux-x86/kleaf/clang_toolchain.bzl
+
+          # Match the setup and bzlmod overrides performed by Qualcomm's
+          # official build_with_bazel.py wrapper while retaining the Common
+          # GKI dist target as the only requested build target.
+          msm_extension=build/msm_kernel_extensions.bzl
+          test ! -e "$msm_extension"
+          ln -s ../soc-repo/kleaf-scripts/msm_kernel_extensions.bzl \
+            "$msm_extension"
+          trap 'rm -f "$msm_extension"' EXIT
+
           mkdir -p "$KLEAF_DIST"
           tools/bazel run \
             --config=release \
+            --incompatible_sandbox_hermetic_tmp=false \
+            --noenable_workspace \
+            --override_module=rules_kotlin=%workspace%/build/kernel/kleaf/bzlmod/fake_modules/rules_kotlin \
+            --override_module=protobuf=%workspace%/build/kernel/kleaf/bzlmod/fake_modules/protobuf \
+            --override_module=rules_java=%workspace%/build/kernel/kleaf/bzlmod/fake_modules/rules_java \
             //common:kernel_aarch64_dist \
             -- \
             --destdir="$KLEAF_DIST" 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
