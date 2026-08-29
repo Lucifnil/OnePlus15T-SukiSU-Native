@@ -2,11 +2,12 @@
 
 面向 OnePlus 15T（PLZ110）的可审计内核重构项目。
 
-当前阶段是第 1 阶段原厂提交纯净基线：直接同步一加官方 15T manifest，
+第 1 阶段是原厂提交纯净基线：直接同步一加官方 15T manifest，
 把 Common 源码固定到当前 PLZ110 原厂 `boot.img` 标识的官方提交
 `844001fb8721c3ee305f17a51628744997f787a0`，再使用官方 Kleaf
 `//common:kernel_aarch64_dist` 目标构建 4K Android 16 GKI。不集成
-KernelSU、SukiSU、SUSFS、KPM 或任何性能补丁。
+KernelSU、SukiSU、SUSFS、KPM 或任何性能补丁。`baseline` CI 变体用于持续
+验证这条纯净链路。
 
 原厂 `boot.img` 本身采用 GKI，因此 Common 目标不是兼容性问题。早期 r11
 误用了较新的 `150cab866c66...` 源码提交；它与当前 OTA 厂商模块的 KMI
@@ -21,8 +22,9 @@ KernelSU、SukiSU、SUSFS、KPM 或任何性能补丁。
 - 原厂 OTA 厂商模块所需的 GKI/KMI 兼容性；
 - AnyKernel3 对 boot 分区的打包与刷写。
 
-该基线没有 Root。只有它在真机上稳定启动后，才进入第 2 阶段原生 SukiSU
-Built-in 后端实现。
+该基线没有 Root。它在真机上稳定启动后，使用 `sukisu_builtin` CI 变体进入
+第 2 阶段：在同一原厂 Common 提交上集成官方 SukiSU Ultra `v4.1.3`，编译为
+`CONFIG_KSU=y` 的 Built-in 后端；不启用 SUSFS 或 KPM。
 
 ## 源码纪律
 
@@ -34,7 +36,8 @@ Built-in 后端实现。
   均按不可变提交检出；
 - 官方 manifest 漏列但 Kleaf Common GKI 分析阶段必需的 `libcap`、`libcap-ng`
   由对应的 Google AOSP Android 16 不可变提交补齐；
-- CI 会拒绝含 KSU、SUSFS、KPM、ADIOS、ReKernel 或 TCP Brutal 的源码；
+- `baseline` 会拒绝 KSU；`sukisu_builtin` 只允许锁定版本的 Built-in KSU，
+  两者都会拒绝 SUSFS、KPM、ADIOS、ReKernel 和 TCP Brutal；
 - CI 会拒绝 Oplus 预编译 `vmlinux` 覆盖本次编译结果；
 - 原厂 Common 提交早于当前官方 Kleaf 对 `vmlinux_oki` 输出的要求，构建时仅应用
   一行官方后续修复，将本次生成的 `vmlinux` 原样复制为 `vmlinux_oki`；

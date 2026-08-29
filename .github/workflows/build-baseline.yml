@@ -3,6 +3,14 @@ name: Build OnePlus 15T official clean baseline
 on:
   workflow_dispatch:
     inputs:
+      kernel_variant:
+        description: Kernel variant to build
+        required: true
+        default: baseline
+        type: choice
+        options:
+          - baseline
+          - sukisu_builtin
       publish_release:
         description: Publish the verified AnyKernel3 baseline as a prerelease
         required: true
@@ -13,7 +21,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: oneplus15t-official-baseline-${{ github.ref }}
+  group: oneplus15t-${{ inputs.kernel_variant }}-${{ github.ref }}
   cancel-in-progress: false
 
 env:
@@ -23,7 +31,7 @@ env:
 
 jobs:
   build:
-    name: Official stock-matched 4K GKI
+    name: Official stock-matched 4K GKI (${{ inputs.kernel_variant }})
     runs-on: ubuntu-24.04
     timeout-minutes: 240
 
@@ -99,6 +107,11 @@ jobs:
           OPLUS_USE_PREBUILT_BOOTIMAGE: "no"
         run: |
           set -euo pipefail
+          variant='${{ inputs.kernel_variant }}'
+          case "$variant" in
+            baseline|sukisu_builtin) ;;
+            *) echo "ERROR: unknown kernel variant: $variant" >&2; exit 1 ;;
+          esac
           bazel_bin=prebuilts/kernel-build-tools/bazel/linux-x86_64/bazel
           test "$($bazel_bin --version)" = "bazel $EXPECTED_BAZEL_VERSION"
           test -d "prebuilts/clang/host/linux-x86/clang-$EXPECTED_CLANG_VERSION"
@@ -120,8 +133,17 @@ jobs:
           stock_makefile=common/scripts/Makefile.vmlinux
           stock_makefile_backup=$(mktemp)
           cp "$stock_makefile" "$stock_makefile_backup"
+          ksu_driver_makefile_backup=
+          ksu_driver_kconfig_backup=
+          ksu_driver_link=
           cleanup() {
             cp "$stock_makefile_backup" "$stock_makefile"
+            if [[ -n "$ksu_driver_makefile_backup" ]]; then
+              cp "$ksu_driver_makefile_backup" common/drivers/Makefile
+              cp "$ksu_driver_kconfig_backup" common/drivers/Kconfig
+              rm -f "$ksu_driver_link" "$ksu_driver_makefile_backup" \
+                "$ksu_driver_kconfig_backup"
+            fi
             rm -f "$stock_makefile_backup" "$msm_extension"
           }
           trap cleanup EXIT
@@ -132,6 +154,36 @@ jobs:
           grep -Fqx $'\t$(Q)cp $(objtree)/vmlinux $(objtree)/vmlinux_oki' \
             "$stock_makefile"
           git -C common diff --check
+
+          if [[ "$variant" == sukisu_builtin ]]; then
+            # Reproduce the official setup.sh integration without executing a
+            # mutable remote script. Fetch the stable tag's immutable commit,
+            # then link only its kernel/ directory into the Common tree.
+            ksu_root="$PWD/KernelSU"
+            test ! -e "$ksu_root"
+            git init -q "$ksu_root"
+            git -C "$ksu_root" remote add origin "$SUKISU_REPO"
+            git -C "$ksu_root" fetch --filter=blob:none --no-tags origin \
+              "refs/tags/$SUKISU_TAG:refs/tags/$SUKISU_TAG"
+            test "$(git -C "$ksu_root" rev-parse "$SUKISU_TAG^{commit}")" = \
+              "$SUKISU_COMMIT"
+            git -C "$ksu_root" checkout -q -b main "$SUKISU_COMMIT"
+            test ! -e "$ksu_root/kernel/susfs.c"
+
+            ksu_driver_makefile_backup=$(mktemp)
+            ksu_driver_kconfig_backup=$(mktemp)
+            cp common/drivers/Makefile "$ksu_driver_makefile_backup"
+            cp common/drivers/Kconfig "$ksu_driver_kconfig_backup"
+            ksu_driver_link=common/drivers/kernelsu
+            test ! -e "$ksu_driver_link"
+            ln -s "$(realpath --relative-to=common/drivers "$ksu_root/kernel")" \
+              "$ksu_driver_link"
+            printf '\nobj-$(CONFIG_KSU) += kernelsu/\n' >> common/drivers/Makefile
+            sed -i '/endmenu/i\source "drivers/kernelsu/Kconfig"' \
+              common/drivers/Kconfig
+            grep -Fqx 'obj-$(CONFIG_KSU) += kernelsu/' common/drivers/Makefile
+            grep -Fqx 'source "drivers/kernelsu/Kconfig"' common/drivers/Kconfig
+          fi
 
           mkdir -p "$KLEAF_DIST"
           tools/bazel run \
@@ -159,7 +211,8 @@ jobs:
           "$SOURCE_DIR/kernel_platform/common/scripts/extract-ikconfig" \
             "$image" > final.config
           test -s final.config
-          bash scripts/verify-config.sh final.config
+          variant='${{ inputs.kernel_variant }}'
+          bash scripts/verify-config.sh final.config "$variant"
 
           if [[ -s "$KLEAF_DIST/kernel.release" ]]; then
             cp "$KLEAF_DIST/kernel.release" kernelrelease.txt
@@ -180,7 +233,12 @@ jobs:
           official_common_commit=$COMMON_COMMIT
           build_compat_source_commit=$STOCK_BUILD_COMPAT_SOURCE_COMMIT
           build_compat_patch_sha256=$STOCK_BUILD_COMPAT_PATCH_SHA256
+          kernel_variant=$variant
           EOF
+          if [[ "$variant" == sukisu_builtin ]]; then
+            printf 'sukisu_tag=%s\nsukisu_commit=%s\n' \
+              "$SUKISU_TAG" "$SUKISU_COMMIT" >> stock-baseline.txt
+          fi
 
           bash scripts/verify-source.sh "$SOURCE_DIR"
           sha256sum "$image" | tee image.sha256
@@ -196,12 +254,18 @@ jobs:
           git -C "$ak3" checkout -q --detach FETCH_HEAD
           test "$(git -C "$ak3" rev-parse HEAD)" = "$ANYKERNEL_COMMIT"
 
+          variant='${{ inputs.kernel_variant }}'
           cp "$KLEAF_DIST/Image" "$ak3/Image"
-          cp packaging/anykernel.sh "$ak3/anykernel.sh"
+          if [[ "$variant" == sukisu_builtin ]]; then
+            cp packaging/anykernel-sukisu.sh "$ak3/anykernel.sh"
+            package="OnePlus15T-SUKISU-BUILTIN-6.12.38-r${GITHUB_RUN_NUMBER}.zip"
+          else
+            cp packaging/anykernel.sh "$ak3/anykernel.sh"
+            package="OnePlus15T-OFFICIAL-CLEAN-6.12.38-baseline-r${GITHUB_RUN_NUMBER}.zip"
+          fi
           rm -rf "$ak3/.git"
 
           mkdir -p dist
-          package="OnePlus15T-OFFICIAL-CLEAN-6.12.38-baseline-r${GITHUB_RUN_NUMBER}.zip"
           (cd "$ak3" && zip -q -r "$GITHUB_WORKSPACE/dist/$package" .)
           (cd dist && sha256sum "$package" > SHA256SUMS)
           cp manifest.lock official-manifest.xml pinned-manifest.xml \
@@ -213,13 +277,13 @@ jobs:
       - name: Upload verified baseline artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: OnePlus15T-official-clean-baseline-${{ github.run_number }}
+          name: OnePlus15T-${{ inputs.kernel_variant }}-${{ github.run_number }}
           path: dist/
           if-no-files-found: error
           compression-level: 0
 
       - name: Create Chinese-first baseline prerelease
-        if: ${{ inputs.publish_release }}
+        if: ${{ inputs.publish_release && inputs.kernel_variant == 'baseline' }}
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
           tag_name: official-stock-kmi-baseline-6.12.38-r${{ github.run_number }}
