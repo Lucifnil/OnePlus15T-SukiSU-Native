@@ -36,6 +36,8 @@ Built-in 后端实现。
   由对应的 Google AOSP Android 16 不可变提交补齐；
 - CI 会拒绝含 KSU、SUSFS、KPM、ADIOS、ReKernel 或 TCP Brutal 的源码；
 - CI 会拒绝 Oplus 预编译 `vmlinux` 覆盖本次编译结果；
+- 原厂 Common 提交早于当前官方 Kleaf 对 `vmlinux_oki` 输出的要求，构建时仅应用
+  一行官方后续修复，将本次生成的 `vmlinux` 原样复制为 `vmlinux_oki`；
 - CI 会拒绝不含原厂提交短哈希的构建产物；
 - Release 附带最终 `.config`、原厂锚点、源码清单、内核版本和 SHA-256。
 

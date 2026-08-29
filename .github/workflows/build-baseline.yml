@@ -112,7 +112,26 @@ jobs:
           test ! -e "$msm_extension"
           ln -s ../soc-repo/kleaf-scripts/msm_kernel_extensions.bzl \
             "$msm_extension"
-          trap 'rm -f "$msm_extension"' EXIT
+
+          # The stock Common commit predates the vmlinux_oki output expected by
+          # the published OnePlus 15T Kleaf tree. Export a byte-identical alias
+          # using the one-line fix later shipped by OnePlus itself. Restore the
+          # official tree after the build so all provenance checks remain strict.
+          stock_makefile=common/scripts/Makefile.vmlinux
+          stock_makefile_backup=$(mktemp)
+          cp "$stock_makefile" "$stock_makefile_backup"
+          cleanup() {
+            cp "$stock_makefile_backup" "$stock_makefile"
+            rm -f "$stock_makefile_backup" "$msm_extension"
+          }
+          trap cleanup EXIT
+          git -C common apply --check \
+            "$GITHUB_WORKSPACE/$STOCK_BUILD_COMPAT_PATCH"
+          git -C common apply --whitespace=error-all \
+            "$GITHUB_WORKSPACE/$STOCK_BUILD_COMPAT_PATCH"
+          grep -Fqx $'\t$(Q)cp $(objtree)/vmlinux $(objtree)/vmlinux_oki' \
+            "$stock_makefile"
+          git -C common diff --check
 
           mkdir -p "$KLEAF_DIST"
           tools/bazel run \
@@ -159,6 +178,8 @@ jobs:
           stock_kernel_release=$STOCK_BOOT_KERNEL_RELEASE
           stock_boot_sha256=$STOCK_BOOT_SHA256
           official_common_commit=$COMMON_COMMIT
+          build_compat_source_commit=$STOCK_BUILD_COMPAT_SOURCE_COMMIT
+          build_compat_patch_sha256=$STOCK_BUILD_COMPAT_PATCH_SHA256
           EOF
 
           bash scripts/verify-source.sh "$SOURCE_DIR"
@@ -187,6 +208,7 @@ jobs:
             resolved-manifest.xml \
             final.config kernelrelease.txt \
             image-file.txt image.sha256 stock-baseline.txt build.log dist/
+          cp "$STOCK_BUILD_COMPAT_PATCH" dist/
 
       - name: Upload verified baseline artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -214,6 +236,7 @@ jobs:
             - 无 Root、无 KernelSU、无 SukiSU
             - 无 SUSFS、KPM、ADIOS、ReKernel、TCP Brutal 或其他性能补丁
             - 不使用 Oplus 预编译 vmlinux，Image 由本次源码构建生成
+            - 仅使用一行一加官方后续修复导出 Kleaf 所需的 `vmlinux_oki` 同内容副本
             - 刷写分区：boot；AnyKernel3 保留原 boot ramdisk 和检测到的 vbmeta 标志
 
             本版只验证原厂提交、OTA 厂商模块 KMI、Kleaf 和刷写链。它不会提供 Root。请保留当前可启动的 boot/init_boot 镜像和 fastboot 恢复手段；确认网络、蓝牙、音频等厂商功能正常后，才进入原生 SukiSU Built-in 阶段。
@@ -235,4 +258,5 @@ jobs:
             dist/image-file.txt
             dist/image.sha256
             dist/stock-baseline.txt
+            dist/0001-export-vmlinux-oki.patch
           fail_on_unmatched_files: true

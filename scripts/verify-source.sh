@@ -9,6 +9,13 @@ source "$PROJECT_DIR/scripts/lib.sh"
 # shellcheck source=/dev/null
 source "$PROJECT_DIR/manifest.lock"
 
+compat_patch="$PROJECT_DIR/$STOCK_BUILD_COMPAT_PATCH"
+require_file "$compat_patch"
+require_value "$(sha256sum "$compat_patch" | awk '{print $1}')" \
+  "$STOCK_BUILD_COMPAT_PATCH_SHA256" "stock build compatibility patch SHA-256"
+grep -Fqx $'+\t$(Q)cp $(objtree)/vmlinux $(objtree)/vmlinux_oki' \
+  "$compat_patch" || die 'unexpected stock build compatibility patch'
+
 require_value "$(git -C "$SOURCE_DIR/kernel_platform/common" rev-parse HEAD)" \
   "$COMMON_COMMIT" "common commit"
 require_value "$COMMON_COMMIT" "$STOCK_BOOT_KERNEL_COMMIT" \
