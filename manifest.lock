@@ -46,6 +46,13 @@ STOCK_BUILD_COMPAT_PATCH_SHA256=4d50c7442b5a6433c5c395a4f0418fd4ea707fdfb8281549
 STOCK_SCMVERSION=-g844001fb8721-ab14552068
 STOCK_SCMVERSION_PATCH=patches/0002-match-stock-scmversion-format.patch
 STOCK_SCMVERSION_PATCH_SHA256=ec59598460253043ed0a4e047f9a22a133ed7da045745fbe553b2b20740f6641
+# PLZ110 ships unsigned GKI/vendor modules and loads them successfully. The
+# public generic Common target otherwise marks all GKI module exports as
+# signature-protected and rejects 103 shipping modules, including cfg80211.
+# Keep the config string identical to stock while supplying an empty generated
+# protected-module list, matching the shipping kernel's observed policy.
+STOCK_MODULE_POLICY_PATCH=patches/0004-match-stock-unsigned-gki-module-policy.patch
+STOCK_MODULE_POLICY_PATCH_SHA256=ea3e62c85f8a84195acd2252ea05005a571262a5728b24b02143fa5ea91ffb86
 
 # Latest stable official SukiSU Ultra release. The kernel sources are linked
 # into the official OnePlus Common tree only for the sukisu_builtin variant.

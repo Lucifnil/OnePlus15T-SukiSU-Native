@@ -1,0 +1,16 @@
+--- a/BUILD.bazel
++++ b/BUILD.bazel
+@@ -102,12 +102,7 @@ write_file(
+ write_file(
+     name = "gki_aarch64_protected_module_names",
+     out = "gki/aarch64/protected_module_names",
+-    content = [
+-        module.removesuffix(".ko")
+-        for module in get_gki_protected_modules_list("arm64")
+-    ] + [
+-        "",  # Ensure new line at the end.
+-    ],
++    content = [""],
+ )
+ 
+ write_file(

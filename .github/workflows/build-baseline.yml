@@ -149,6 +149,9 @@ jobs:
           stock_makefile=common/scripts/Makefile.vmlinux
           stock_makefile_backup=$(mktemp)
           cp "$stock_makefile" "$stock_makefile_backup"
+          common_build_file=common/BUILD.bazel
+          common_build_backup=$(mktemp)
+          cp "$common_build_file" "$common_build_backup"
           stamp_file=build/kernel/kleaf/impl/stamp.bzl
           stamp_file_backup=$(mktemp)
           cp "$stamp_file" "$stamp_file_backup"
@@ -159,6 +162,7 @@ jobs:
           ksu_driver_link=
           cleanup() {
             cp "$stock_makefile_backup" "$stock_makefile"
+            cp "$common_build_backup" "$common_build_file"
             cp "$stamp_file_backup" "$stamp_file"
             if [[ -n "$ksu_driver_makefile_backup" ]]; then
               cp "$ksu_driver_makefile_backup" common/drivers/Makefile
@@ -166,7 +170,8 @@ jobs:
               rm -f "$ksu_driver_link" "$ksu_driver_makefile_backup" \
                 "$ksu_driver_kconfig_backup"
             fi
-            rm -f "$stock_makefile_backup" "$stamp_file_backup" \
+            rm -f "$stock_makefile_backup" "$common_build_backup" \
+              "$stamp_file_backup" \
               "$workspace_status" "$msm_extension"
           }
           trap cleanup EXIT
@@ -176,6 +181,15 @@ jobs:
             "$GITHUB_WORKSPACE/$STOCK_BUILD_COMPAT_PATCH"
           grep -Fqx $'\t$(Q)cp $(objtree)/vmlinux $(objtree)/vmlinux_oki' \
             "$stock_makefile"
+
+          # The shipping PLZ110 module set is unsigned. Match the stock
+          # kernel's observed policy by retaining the config path while
+          # generating an empty protected-export list for the Common target.
+          git -C common apply --check --unidiff-zero \
+            "$GITHUB_WORKSPACE/$STOCK_MODULE_POLICY_PATCH"
+          git -C common apply --unidiff-zero --whitespace=error-all \
+            "$GITHUB_WORKSPACE/$STOCK_MODULE_POLICY_PATCH"
+          grep -Fqx '    content = [""],' "$common_build_file"
           git -C common diff --check
 
           # Kleaf officially supports SCMVERSION overrides through this JSON
@@ -314,6 +328,7 @@ jobs:
           build_compat_source_commit=$STOCK_BUILD_COMPAT_SOURCE_COMMIT
           build_compat_patch_sha256=$STOCK_BUILD_COMPAT_PATCH_SHA256
           scmversion_patch_sha256=$STOCK_SCMVERSION_PATCH_SHA256
+          module_policy_patch_sha256=$STOCK_MODULE_POLICY_PATCH_SHA256
           kernel_variant=$variant
           diagnostic_allow_shell=$diagnostic
           EOF
@@ -363,7 +378,8 @@ jobs:
           if [[ -s Module.symvers ]]; then
             cp Module.symvers dist/
           fi
-          cp "$STOCK_BUILD_COMPAT_PATCH" "$STOCK_SCMVERSION_PATCH" dist/
+          cp "$STOCK_BUILD_COMPAT_PATCH" "$STOCK_SCMVERSION_PATCH" \
+            "$STOCK_MODULE_POLICY_PATCH" dist/
           if [[ "$variant" == sukisu_builtin ]]; then
             cp "$SUKISU_BUILD_VERSION_PATCH" dist/
           fi
