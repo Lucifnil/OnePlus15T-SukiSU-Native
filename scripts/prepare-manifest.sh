@@ -23,15 +23,18 @@ cp "$official_repo/$MANIFEST_FILE" "$OFFICIAL_MANIFEST_OUT"
 cp "$official_repo/$MANIFEST_FILE" "$pinned_repo/$MANIFEST_FILE"
 pinned_manifest="$pinned_repo/$MANIFEST_FILE"
 
-# Four historical test/DDK inputs in the published manifest have been removed
-# from their CodeLinaro server and are not inputs to the Common GKI target. The
-# published Clang snapshot is gone as well, so use Google's immutable r536225
-# prebuilt commit at the same path expected by Kleaf.
+# Three historical test/module inputs in the published manifest have been
+# removed from their CodeLinaro server and are not inputs to the Common GKI
+# target. The published Clang and kernel build-tools snapshots are gone as
+# well, so use Google's immutable official prebuilts at the paths Kleaf expects.
 sed -i \
-  '/name="kernel\/common-modules\/trusty"/d; /name="kernel\/prebuilts\/build-tools"/,/<\/project>/d; /name="kernel_platform\/prebuilts\/asuite"/d; /name="kernel_platform\/tools\/tradefederation\/prebuilts"/d' \
+  '/name="kernel\/common-modules\/trusty"/d; /name="kernel_platform\/prebuilts\/asuite"/d; /name="kernel_platform\/tools\/tradefederation\/prebuilts"/d' \
   "$pinned_manifest"
 sed -i \
   '/<remote fetch="https:\/\/github.com\/OnePlusOSS" name="origin"\/>/a\  <remote fetch="https://android.googlesource.com" name="aosp"/>' \
+  "$pinned_manifest"
+sed -i -E \
+  "/name=\"kernel\/prebuilts\/build-tools\"/,/<\/project>/c\  <project remote=\"aosp\" name=\"kernel/prebuilts/build-tools\" path=\"kernel_platform/prebuilts/kernel-build-tools\" revision=\"$AOSP_KERNEL_BUILD_TOOLS_COMMIT\" groups=\"ddk\">\n      <linkfile dest=\"kernel_platform/build/prebuilts/kernel-build-tools\" src=\".\"/>\n    </project>" \
   "$pinned_manifest"
 sed -i -E \
   "/name=\"kernelplatform\/prebuilts-master\/clang\/host\/linux-x86\"/c\  <project remote=\"aosp\" name=\"platform/prebuilts/clang/host/linux-x86\" path=\"kernel_platform/prebuilts/clang/host/linux-x86\" revision=\"$AOSP_CLANG_COMMIT\" groups=\"ddk\"/>" \
@@ -62,6 +65,8 @@ require_value "$(grep -Fc "$DEVICE_COMMIT" "$pinned_manifest")" 1 \
   'pinned device manifest entry count'
 require_value "$(grep -Fc "$AOSP_CLANG_COMMIT" "$pinned_manifest")" 1 \
   'pinned AOSP Clang manifest entry count'
+require_value "$(grep -Fc "$AOSP_KERNEL_BUILD_TOOLS_COMMIT" "$pinned_manifest")" 1 \
+  'pinned AOSP kernel build-tools manifest entry count'
 if grep -Eq 'upstream=|sync-c="true"|revision="oneplus/' "$pinned_manifest"; then
   die 'generated manifest still contains a moving or stale revision hint'
 fi
