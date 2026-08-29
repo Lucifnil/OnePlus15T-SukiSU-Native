@@ -252,6 +252,11 @@ jobs:
               "-- SukiSU-Ultra version: $EXPECTED_SUKISU_VERSION_CODE [v${SUKISU_TAG#v}-${SUKISU_COMMIT:0:8}@main]" \
               "$GITHUB_WORKSPACE/build.log"
           fi
+          module_symvers=$(find -L bazel-bin/common -type f \
+            -name Module.symvers -print -quit 2>/dev/null || true)
+          if [[ -n "$module_symvers" ]]; then
+            cp "$module_symvers" "$GITHUB_WORKSPACE/Module.symvers"
+          fi
 
       - name: Verify source-built baseline
         shell: bash
@@ -259,7 +264,6 @@ jobs:
           set -euo pipefail
           image="$KLEAF_DIST/Image"
           test -s "$image"
-          test -s "$KLEAF_DIST/Module.symvers"
           file "$image" | tee image-file.txt
           "$SOURCE_DIR/kernel_platform/common/scripts/extract-ikconfig" \
             "$image" > final.config
@@ -328,7 +332,9 @@ jobs:
             final.config kernelrelease.txt \
             image-file.txt image.sha256 stock-baseline.txt build.log \
             clang-version.txt dist/
-          cp "$KLEAF_DIST/Module.symvers" dist/
+          if [[ -s Module.symvers ]]; then
+            cp Module.symvers dist/
+          fi
           cp "$STOCK_BUILD_COMPAT_PATCH" "$STOCK_SCMVERSION_PATCH" dist/
           if [[ "$variant" == sukisu_builtin ]]; then
             cp "$SUKISU_BUILD_VERSION_PATCH" dist/
