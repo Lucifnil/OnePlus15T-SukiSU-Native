@@ -61,15 +61,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          bash "$GITHUB_WORKSPACE/scripts/prepare-manifest.sh" \
+            "$GITHUB_WORKSPACE/work" "$GITHUB_WORKSPACE/official-manifest.xml"
+          pinned_manifest_repo="$GITHUB_WORKSPACE/work/pinned-manifest-repo"
+          pinned_manifest_commit=$(git -C "$pinned_manifest_repo" rev-parse HEAD)
           mkdir -p "$SOURCE_DIR"
           cd "$SOURCE_DIR"
           repo init \
-            -u "$MANIFEST_REPO" \
-            -b "$MANIFEST_COMMIT" \
+            -u "file://$pinned_manifest_repo" \
+            -b "$pinned_manifest_commit" \
             -m "$MANIFEST_FILE" \
             --depth=1 \
             --no-clone-bundle
-          test "$(git -C .repo/manifests rev-parse HEAD)" = "$MANIFEST_COMMIT"
+          test "$(git -C .repo/manifests rev-parse HEAD)" = "$pinned_manifest_commit"
           test -f ".repo/manifests/$MANIFEST_FILE"
           repo sync \
             --no-current-branch \
@@ -77,14 +81,6 @@ jobs:
             --no-clone-bundle \
             --fail-fast \
             -j2
-          bash "$GITHUB_WORKSPACE/scripts/pin-source.sh" \
-            "$COMMON_REPO" "$SOURCE_DIR/kernel_platform/common" \
-            "$COMMON_COMMIT" common
-          bash "$GITHUB_WORKSPACE/scripts/pin-source.sh" \
-            "$SOC_REPO" "$SOURCE_DIR/kernel_platform/soc-repo" \
-            "$SOC_COMMIT" SoC
-          bash "$GITHUB_WORKSPACE/scripts/pin-source.sh" \
-            "$DEVICE_REPO" "$SOURCE_DIR" "$DEVICE_COMMIT" device/modules
           bash "$GITHUB_WORKSPACE/scripts/verify-source.sh" "$SOURCE_DIR"
           repo manifest -r -o "$GITHUB_WORKSPACE/resolved-manifest.xml"
           printf 'SOURCE_DATE_EPOCH=%s\n' \
@@ -155,7 +151,8 @@ jobs:
           package="OnePlus15T-OFFICIAL-CLEAN-6.12.38-baseline-r${GITHUB_RUN_NUMBER}.zip"
           (cd "$ak3" && zip -q -r "$GITHUB_WORKSPACE/dist/$package" .)
           (cd dist && sha256sum "$package" > SHA256SUMS)
-          cp manifest.lock resolved-manifest.xml final.config kernelrelease.txt \
+          cp manifest.lock official-manifest.xml resolved-manifest.xml \
+            final.config kernelrelease.txt \
             image-file.txt image.sha256 build.log dist/
 
       - name: Upload verified baseline artifact
@@ -195,6 +192,7 @@ jobs:
             dist/*.zip
             dist/SHA256SUMS
             dist/manifest.lock
+            dist/official-manifest.xml
             dist/resolved-manifest.xml
             dist/final.config
             dist/kernelrelease.txt

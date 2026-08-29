@@ -21,7 +21,8 @@ Built-in 后端实现。
 ## 源码纪律
 
 - 所有主要输入均记录在 `manifest.lock`；
-- CI 会把官方 manifest、Common、SoC 和设备仓库强制检出到锁定提交后再构建；
+- CI 会验证官方 manifest，并把其中已失效的同步提示转换成全提交锁定的本地
+  manifest；Common、SoC、设备及工具链仓库都按不可变提交检出；
 - CI 会拒绝含 KSU、SUSFS、KPM、ADIOS、ReKernel 或 TCP Brutal 的源码；
 - CI 会拒绝 Oplus 预编译 `vmlinux` 覆盖本次编译结果；
 - Release 附带最终 `.config`、源码清单、内核版本和 SHA-256。

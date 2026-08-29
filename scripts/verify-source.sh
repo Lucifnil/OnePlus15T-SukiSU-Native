@@ -9,8 +9,6 @@ source "$PROJECT_DIR/scripts/lib.sh"
 # shellcheck source=/dev/null
 source "$PROJECT_DIR/manifest.lock"
 
-require_value "$(git -C "$SOURCE_DIR/.repo/manifests" rev-parse HEAD)" \
-  "$MANIFEST_COMMIT" "manifest commit"
 require_value "$(git -C "$SOURCE_DIR/kernel_platform/common" rev-parse HEAD)" \
   "$COMMON_COMMIT" "common commit"
 require_value "$(git -C "$SOURCE_DIR/kernel_platform/soc-repo" rev-parse HEAD)" \
@@ -56,4 +54,3 @@ git -C "$SOURCE_DIR/kernel_platform/soc-repo" diff --exit-code --
 git -C "$SOURCE_DIR" diff --exit-code --
 
 printf 'Verified clean official OnePlus 15T source at common %s\n' "$COMMON_COMMIT"
-
