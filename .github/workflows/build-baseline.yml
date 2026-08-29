@@ -23,7 +23,7 @@ env:
 
 jobs:
   build:
-    name: Official clean 4K GKI
+    name: Official stock-matched 4K GKI
     runs-on: ubuntu-24.04
     timeout-minutes: 240
 
@@ -39,7 +39,7 @@ jobs:
           source manifest.lock
           set +a
           while IFS='=' read -r key value; do
-            [[ -z "$key" ]] && continue
+            [[ -z "$key" || "$key" == \#* ]] && continue
             printf '%s=%s\n' "$key" "$value" >> "$GITHUB_ENV"
           done < manifest.lock
 
@@ -90,7 +90,7 @@ jobs:
             >> "$GITHUB_ENV"
           df -h
 
-      - name: Build official Common GKI with Kleaf
+      - name: Build stock-matched official Common GKI with Kleaf
         shell: bash
         working-directory: ${{ github.workspace }}/work/source/kernel_platform
         env:
@@ -106,8 +106,8 @@ jobs:
             prebuilts/clang/host/linux-x86/kleaf/clang_toolchain.bzl
 
           # Match the setup and bzlmod overrides performed by Qualcomm's
-          # official build_with_bazel.py wrapper while retaining the Common
-          # GKI dist target as the only requested build target.
+          # official build_with_bazel.py wrapper while building the exact
+          # OnePlus Common commit identified in the stock PLZ110 boot image.
           msm_extension=build/msm_kernel_extensions.bzl
           test ! -e "$msm_extension"
           ln -s ../soc-repo/kleaf-scripts/msm_kernel_extensions.bzl \
@@ -150,6 +150,16 @@ jobs:
               sed -E 's/^Linux version ([^ ]+).*/\1/' > kernelrelease.txt
           fi
           grep -Eq '^6\.12\.38-android16-5.*-4k$' kernelrelease.txt
+          expected_short_commit=${STOCK_BOOT_KERNEL_COMMIT:0:12}
+          grep -Eq "^6\\.12\\.38-android16-5.*g${expected_short_commit}.*-4k$" \
+            kernelrelease.txt
+
+          cat > stock-baseline.txt <<EOF
+          firmware=$STOCK_FIRMWARE_BUILD
+          stock_kernel_release=$STOCK_BOOT_KERNEL_RELEASE
+          stock_boot_sha256=$STOCK_BOOT_SHA256
+          official_common_commit=$COMMON_COMMIT
+          EOF
 
           bash scripts/verify-source.sh "$SOURCE_DIR"
           sha256sum "$image" | tee image.sha256
@@ -176,7 +186,7 @@ jobs:
           cp manifest.lock official-manifest.xml pinned-manifest.xml \
             resolved-manifest.xml \
             final.config kernelrelease.txt \
-            image-file.txt image.sha256 build.log dist/
+            image-file.txt image.sha256 stock-baseline.txt build.log dist/
 
       - name: Upload verified baseline artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -190,27 +200,29 @@ jobs:
         if: ${{ inputs.publish_release }}
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
-          tag_name: official-baseline-6.12.38-r${{ github.run_number }}
-          name: OnePlus 15T 官方纯净基线 r${{ github.run_number }}
+          tag_name: official-stock-kmi-baseline-6.12.38-r${{ github.run_number }}
+          name: OnePlus 15T 原厂提交纯净基线 r${{ github.run_number }}
           prerelease: true
           generate_release_notes: false
           body: |
-            OnePlus 15T（PLZ110）官方源码纯净基线，第一次真机启动验证用。
+            OnePlus 15T（PLZ110）原厂内核提交纯净基线，真机兼容性验证用。
 
-            - 一加官方 Common GKI：6.12.38 / Android 16 / 4K
-            - 官方目标：`//common:kernel_aarch64_dist`
+            - 原厂锚点：`PLZ110_16.0.10.500(CN01)`
+            - 原厂内核：`6.12.38-android16-5-g844001fb8721-ab14552068-4k`
+            - 一加官方源码提交：`844001fb8721c3ee305f17a51628744997f787a0`
+            - 构建目标：`//common:kernel_aarch64_dist`（与原厂 boot 的 GKI 架构一致）
             - 无 Root、无 KernelSU、无 SukiSU
             - 无 SUSFS、KPM、ADIOS、ReKernel、TCP Brutal 或其他性能补丁
             - 不使用 Oplus 预编译 vmlinux，Image 由本次源码构建生成
             - 刷写分区：boot；AnyKernel3 保留原 boot ramdisk 和检测到的 vbmeta 标志
 
-            本版只验证官方源码、KMI、Kleaf 和刷写链。它不会提供 Root。请保留当前可启动的 boot/init_boot 镜像和 fastboot 恢复手段；确认能连续正常启动后，才进入原生 SukiSU Built-in 阶段。
+            本版只验证原厂提交、OTA 厂商模块 KMI、Kleaf 和刷写链。它不会提供 Root。请保留当前可启动的 boot/init_boot 镜像和 fastboot 恢复手段；确认网络、蓝牙、音频等厂商功能正常后，才进入原生 SukiSU Built-in 阶段。
 
             ---
 
-            Clean official-source boot baseline for OnePlus 15T (PLZ110).
+            Stock-commit official-source boot baseline for OnePlus 15T (PLZ110).
 
-            No Root, KernelSU, SukiSU, SUSFS, KPM or third-party kernel features. Built directly from the pinned OnePlus 6.12.38 Common GKI target with Kleaf. This prerelease validates only the official source, KMI, build and flashing chain.
+            No Root, KernelSU, SukiSU, SUSFS, KPM or third-party kernel features. Built from the exact official OnePlus Common commit identified by the matching stock boot image. This prerelease validates stock vendor-module KMI, the source build, and the boot-only flashing chain.
           files: |
             dist/*.zip
             dist/SHA256SUMS
@@ -222,4 +234,5 @@ jobs:
             dist/kernelrelease.txt
             dist/image-file.txt
             dist/image.sha256
+            dist/stock-baseline.txt
           fail_on_unmatched_files: true

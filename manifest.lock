@@ -4,7 +4,7 @@ MANIFEST_FILE=oneplus_15t.xml
 MANIFEST_COMMIT=ecdd4809cbd01fa5f509a4708347026f63498303
 
 COMMON_REPO=https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8850.git
-COMMON_COMMIT=150cab866c6632d4b38d7cc323169b2fd9c9660d
+COMMON_COMMIT=844001fb8721c3ee305f17a51628744997f787a0
 SOC_REPO=https://github.com/OnePlusOSS/android_kernel_oneplus_sm8850.git
 SOC_COMMIT=0cfd948c0d9507d0bc04706f6f919a25787c2d89
 DEVICE_REPO=https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8850.git
@@ -25,6 +25,13 @@ EXPECTED_KMI_GENERATION=5
 EXPECTED_CLANG_VERSION=r536225
 EXPECTED_BAZEL_VERSION=8.0.0
 EXPECTED_RUST_VERSION=1.82.0
+
+# Exact anchors extracted from the matching PLZ110 stock boot image. The stock
+# kernel commit resolves to the official OnePlus Common repository above.
+STOCK_FIRMWARE_BUILD=PLZ110_16.0.10.500_CN01
+STOCK_BOOT_KERNEL_COMMIT=844001fb8721c3ee305f17a51628744997f787a0
+STOCK_BOOT_KERNEL_RELEASE=6.12.38-android16-5-g844001fb8721-ab14552068-4k
+STOCK_BOOT_SHA256=a2877bb8fb45286095363c6528f1fc2fec75660b53cc2879fd48c35cee55347d
 
 ANYKERNEL_REPO=https://github.com/cctv18/AnyKernel3.git
 ANYKERNEL_COMMIT=091ee586e1a5d5c1c1c957d48fe7c61638d04dc4

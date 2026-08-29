@@ -11,6 +11,8 @@ source "$PROJECT_DIR/manifest.lock"
 
 require_value "$(git -C "$SOURCE_DIR/kernel_platform/common" rev-parse HEAD)" \
   "$COMMON_COMMIT" "common commit"
+require_value "$COMMON_COMMIT" "$STOCK_BOOT_KERNEL_COMMIT" \
+  "stock boot kernel source commit"
 require_value "$(git -C "$SOURCE_DIR/kernel_platform/soc-repo" rev-parse HEAD)" \
   "$SOC_COMMIT" "SoC commit"
 require_value "$(git -C "$SOURCE_DIR" rev-parse HEAD)" \
@@ -53,4 +55,5 @@ git -C "$SOURCE_DIR/kernel_platform/common" diff --exit-code --
 git -C "$SOURCE_DIR/kernel_platform/soc-repo" diff --exit-code --
 git -C "$SOURCE_DIR" diff --exit-code --
 
-printf 'Verified clean official OnePlus 15T source at common %s\n' "$COMMON_COMMIT"
+printf 'Verified stock-matched official OnePlus 15T source at common %s\n' \
+  "$COMMON_COMMIT"
