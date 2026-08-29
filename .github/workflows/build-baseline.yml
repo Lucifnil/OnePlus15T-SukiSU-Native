@@ -65,13 +65,11 @@ jobs:
           cd "$SOURCE_DIR"
           repo init \
             -u "$MANIFEST_REPO" \
-            -b "$MANIFEST_BRANCH" \
+            -b "$MANIFEST_COMMIT" \
             -m "$MANIFEST_FILE" \
             --depth=1 \
             --no-clone-bundle
-          bash "$GITHUB_WORKSPACE/scripts/pin-source.sh" \
-            "$MANIFEST_REPO" "$SOURCE_DIR/.repo/manifests" \
-            "$MANIFEST_COMMIT" manifest
+          test "$(git -C .repo/manifests rev-parse HEAD)" = "$MANIFEST_COMMIT"
           test -f ".repo/manifests/$MANIFEST_FILE"
           repo sync \
             -c \
