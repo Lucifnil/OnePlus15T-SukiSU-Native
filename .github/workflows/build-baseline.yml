@@ -72,7 +72,7 @@ jobs:
           test "$(git -C .repo/manifests rev-parse HEAD)" = "$MANIFEST_COMMIT"
           test -f ".repo/manifests/$MANIFEST_FILE"
           repo sync \
-            -c \
+            --no-current-branch \
             --no-tags \
             --no-clone-bundle \
             --fail-fast \
