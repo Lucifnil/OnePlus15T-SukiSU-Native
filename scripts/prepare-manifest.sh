@@ -33,6 +33,9 @@ sed -i \
 sed -i \
   '/<remote fetch="https:\/\/github.com\/OnePlusOSS" name="origin"\/>/a\  <remote fetch="https://android.googlesource.com" name="aosp"/>' \
   "$pinned_manifest"
+sed -i \
+  "/<remote fetch=\"https:\/\/android.googlesource.com\" name=\"aosp\"\/>/a\  <project remote=\"aosp\" name=\"platform/external/libcap\" path=\"kernel_platform/external/libcap\" revision=\"$AOSP_LIBCAP_COMMIT\" groups=\"ddk\"/>\n  <project remote=\"aosp\" name=\"platform/external/libcap-ng\" path=\"kernel_platform/external/libcap-ng\" revision=\"$AOSP_LIBCAP_NG_COMMIT\" groups=\"ddk\"/>" \
+  "$pinned_manifest"
 sed -i -E \
   "/name=\"kernel\/prebuilts\/build-tools\"/,/<\/project>/c\  <project remote=\"aosp\" name=\"kernel/prebuilts/build-tools\" path=\"kernel_platform/prebuilts/kernel-build-tools\" revision=\"$AOSP_KERNEL_BUILD_TOOLS_COMMIT\" groups=\"ddk\">\n      <linkfile dest=\"kernel_platform/build/prebuilts/kernel-build-tools\" src=\".\"/>\n    </project>" \
   "$pinned_manifest"
@@ -67,6 +70,10 @@ require_value "$(grep -Fc "$AOSP_CLANG_COMMIT" "$pinned_manifest")" 1 \
   'pinned AOSP Clang manifest entry count'
 require_value "$(grep -Fc "$AOSP_KERNEL_BUILD_TOOLS_COMMIT" "$pinned_manifest")" 1 \
   'pinned AOSP kernel build-tools manifest entry count'
+require_value "$(grep -Fc "$AOSP_LIBCAP_COMMIT" "$pinned_manifest")" 1 \
+  'pinned AOSP libcap manifest entry count'
+require_value "$(grep -Fc "$AOSP_LIBCAP_NG_COMMIT" "$pinned_manifest")" 1 \
+  'pinned AOSP libcap-ng manifest entry count'
 if grep -Eq 'upstream=|sync-c="true"|revision="oneplus/' "$pinned_manifest"; then
   die 'generated manifest still contains a moving or stale revision hint'
 fi

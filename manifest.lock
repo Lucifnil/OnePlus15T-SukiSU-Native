@@ -14,6 +14,10 @@ AOSP_CLANG_REPO=https://android.googlesource.com/platform/prebuilts/clang/host/l
 AOSP_CLANG_COMMIT=a5ea87db9244cecf189ec9f9b11d55c6c1bdf07e
 AOSP_KERNEL_BUILD_TOOLS_REPO=https://android.googlesource.com/kernel/prebuilts/build-tools
 AOSP_KERNEL_BUILD_TOOLS_COMMIT=3c5e4f14b451ec85167c38b917d2459687abd7f4
+AOSP_LIBCAP_REPO=https://android.googlesource.com/platform/external/libcap
+AOSP_LIBCAP_COMMIT=9a2ead0b5a377a75849cb0656aa553b5452a7080
+AOSP_LIBCAP_NG_REPO=https://android.googlesource.com/platform/external/libcap-ng
+AOSP_LIBCAP_NG_COMMIT=8dd5e09d5faf27a871e8654ddaa2d2af7c696578
 
 EXPECTED_KERNEL_VERSION=6.12.38
 EXPECTED_ANDROID_BRANCH=android16-6.12

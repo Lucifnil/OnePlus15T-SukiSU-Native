@@ -26,6 +26,8 @@ Built-in 后端实现。
 - 官方 manifest 中已删除的 Clang 与 kernel build-tools 镜像改由 Google AOSP
   的不可变官方提交提供，Clang 仍为 r536225；Common、SoC、设备及工具链仓库
   均按不可变提交检出；
+- 官方 manifest 漏列但 Kleaf Common GKI 分析阶段必需的 `libcap`、`libcap-ng`
+  由对应的 Google AOSP Android 16 不可变提交补齐；
 - CI 会拒绝含 KSU、SUSFS、KPM、ADIOS、ReKernel 或 TCP Brutal 的源码；
 - CI 会拒绝 Oplus 预编译 `vmlinux` 覆盖本次编译结果；
 - Release 附带最终 `.config`、源码清单、内核版本和 SHA-256。
