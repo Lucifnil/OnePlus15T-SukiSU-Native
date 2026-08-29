@@ -16,6 +16,11 @@ on:
         required: true
         default: true
         type: boolean
+      diagnostic_allow_shell:
+        description: Diagnostic only - grant ADB shell root on a temporary SukiSU boot
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -108,10 +113,15 @@ jobs:
         run: |
           set -euo pipefail
           variant='${{ inputs.kernel_variant }}'
+          diagnostic='${{ inputs.diagnostic_allow_shell }}'
           case "$variant" in
             baseline|sukisu_builtin) ;;
             *) echo "ERROR: unknown kernel variant: $variant" >&2; exit 1 ;;
           esac
+          if [[ "$diagnostic" == true && "$variant" != sukisu_builtin ]]; then
+            echo 'ERROR: diagnostic shell requires sukisu_builtin' >&2
+            exit 1
+          fi
           bazel_bin=prebuilts/kernel-build-tools/bazel/linux-x86_64/bazel
           test "$($bazel_bin --version)" = "bazel $EXPECTED_BAZEL_VERSION"
           clang_bin="prebuilts/clang/host/linux-x86/clang-$EXPECTED_CLANG_VERSION/bin/clang"
@@ -229,6 +239,12 @@ jobs:
               common/drivers/Kconfig
             grep -Fqx 'obj-$(CONFIG_KSU) += kernelsu/' common/drivers/Makefile
             grep -Fqx 'source "drivers/kernelsu/Kconfig"' common/drivers/Kconfig
+            if [[ "$diagnostic" == true ]]; then
+              sed -i '/^config KSU_DEBUG$/,/^config KSU_MANUAL_SU$/ s/^\tdefault n$/\tdefault y/' \
+                "$ksu_root/kernel/Kconfig"
+              grep -A4 '^config KSU_DEBUG$' "$ksu_root/kernel/Kconfig" | \
+                grep -Fqx $'\tdefault y'
+            fi
           fi
 
           mkdir -p "$KLEAF_DIST"
@@ -269,10 +285,17 @@ jobs:
             "$image" > final.config
           test -s final.config
           variant='${{ inputs.kernel_variant }}'
+          diagnostic='${{ inputs.diagnostic_allow_shell }}'
           bash scripts/verify-config.sh final.config "$variant"
           grep -Fqx 'CONFIG_DEBUG_INFO_COMPRESSED_ZSTD=y' final.config
           grep -Fq "CONFIG_CC_VERSION_TEXT=\"Android ($EXPECTED_CLANG_BUILD," \
             final.config
+          if [[ "$diagnostic" == true ]]; then
+            grep -Fqx 'CONFIG_KSU_DEBUG=y' final.config
+          else
+            grep -Fqx '# CONFIG_KSU_DEBUG is not set' final.config || \
+              [[ "$variant" == baseline ]]
+          fi
 
           if [[ -s "$KLEAF_DIST/kernel.release" ]]; then
             cp "$KLEAF_DIST/kernel.release" kernelrelease.txt
@@ -292,6 +315,7 @@ jobs:
           build_compat_patch_sha256=$STOCK_BUILD_COMPAT_PATCH_SHA256
           scmversion_patch_sha256=$STOCK_SCMVERSION_PATCH_SHA256
           kernel_variant=$variant
+          diagnostic_allow_shell=$diagnostic
           EOF
           if [[ "$variant" == sukisu_builtin ]]; then
             printf 'sukisu_tag=%s\nsukisu_commit=%s\nsukisu_version_code=%s\n' \
@@ -314,8 +338,12 @@ jobs:
           test "$(git -C "$ak3" rev-parse HEAD)" = "$ANYKERNEL_COMMIT"
 
           variant='${{ inputs.kernel_variant }}'
+          diagnostic='${{ inputs.diagnostic_allow_shell }}'
           cp "$KLEAF_DIST/Image" "$ak3/Image"
-          if [[ "$variant" == sukisu_builtin ]]; then
+          if [[ "$diagnostic" == true ]]; then
+            cp packaging/anykernel-sukisu.sh "$ak3/anykernel.sh"
+            package="OnePlus15T-SUKISU-DIAGNOSTIC-ALLOW-SHELL-6.12.38-r${GITHUB_RUN_NUMBER}.zip"
+          elif [[ "$variant" == sukisu_builtin ]]; then
             cp packaging/anykernel-sukisu.sh "$ak3/anykernel.sh"
             package="OnePlus15T-SUKISU-BUILTIN-6.12.38-r${GITHUB_RUN_NUMBER}.zip"
           else
@@ -339,6 +367,11 @@ jobs:
           if [[ "$variant" == sukisu_builtin ]]; then
             cp "$SUKISU_BUILD_VERSION_PATCH" dist/
           fi
+          if [[ "$diagnostic" == true ]]; then
+            printf '%s\n' \
+              'DIAGNOSTIC ONLY: CONFIG_KSU_DEBUG grants ADB shell root. Do not flash.' \
+              > dist/DIAGNOSTIC-ONLY.txt
+          fi
 
       - name: Upload verified baseline artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -349,7 +382,7 @@ jobs:
           compression-level: 0
 
       - name: Create Chinese-first baseline prerelease
-        if: ${{ inputs.publish_release && inputs.kernel_variant == 'baseline' }}
+        if: ${{ inputs.publish_release && inputs.kernel_variant == 'baseline' && !inputs.diagnostic_allow_shell }}
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
           tag_name: official-stock-kmi-baseline-6.12.38-r${{ github.run_number }}
