@@ -99,6 +99,9 @@ jobs:
           OPLUS_USE_PREBUILT_BOOTIMAGE: "no"
         run: |
           set -euo pipefail
+          bazel_bin=prebuilts/kernel-build-tools/bazel/linux-x86_64/bazel
+          test "$($bazel_bin --version)" = "bazel $EXPECTED_BAZEL_VERSION"
+          test -d "prebuilts/clang/host/linux-x86/clang-$EXPECTED_CLANG_VERSION"
           mkdir -p "$KLEAF_DIST"
           tools/bazel run \
             --config=release \
