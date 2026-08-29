@@ -23,6 +23,20 @@ cp "$official_repo/$MANIFEST_FILE" "$OFFICIAL_MANIFEST_OUT"
 cp "$official_repo/$MANIFEST_FILE" "$pinned_repo/$MANIFEST_FILE"
 pinned_manifest="$pinned_repo/$MANIFEST_FILE"
 
+# Four historical test/DDK inputs in the published manifest have been removed
+# from their CodeLinaro server and are not inputs to the Common GKI target. The
+# published Clang snapshot is gone as well, so use Google's immutable r536225
+# prebuilt commit at the same path expected by Kleaf.
+sed -i \
+  '/name="kernel\/common-modules\/trusty"/d; /name="kernel\/prebuilts\/build-tools"/,/<\/project>/d; /name="kernel_platform\/prebuilts\/asuite"/d; /name="kernel_platform\/tools\/tradefederation\/prebuilts"/d' \
+  "$pinned_manifest"
+sed -i \
+  '/<remote fetch="https:\/\/github.com\/OnePlusOSS" name="origin"\/>/a\  <remote fetch="https://android.googlesource.com" name="aosp"/>' \
+  "$pinned_manifest"
+sed -i -E \
+  "/name=\"kernelplatform\/prebuilts-master\/clang\/host\/linux-x86\"/c\  <project remote=\"aosp\" name=\"platform/prebuilts/clang/host/linux-x86\" path=\"kernel_platform/prebuilts/clang/host/linux-x86\" revision=\"$AOSP_CLANG_COMMIT\" groups=\"ddk\"/>" \
+  "$pinned_manifest"
+
 sed -i -E \
   "/name=\"android_kernel_common_oneplus_sm8850\"/ s#revision=\"[^\"]+\"#revision=\"$COMMON_COMMIT\"#" \
   "$pinned_manifest"
@@ -46,8 +60,14 @@ require_value "$(grep -Fc "$SOC_COMMIT" "$pinned_manifest")" 1 \
   'pinned SoC manifest entry count'
 require_value "$(grep -Fc "$DEVICE_COMMIT" "$pinned_manifest")" 1 \
   'pinned device manifest entry count'
+require_value "$(grep -Fc "$AOSP_CLANG_COMMIT" "$pinned_manifest")" 1 \
+  'pinned AOSP Clang manifest entry count'
 if grep -Eq 'upstream=|sync-c="true"|revision="oneplus/' "$pinned_manifest"; then
   die 'generated manifest still contains a moving or stale revision hint'
+fi
+if grep -Eq '4d7c778e792fbb56ced787158817ba1f17c68f3e|1af373e4210e3eacf056c56182140d3ef0a22379|3408234902a6e80b1ecda64a69c4e469a6216441|4ba19a61c7a0d63603e0d1c84eb2b610bff706a4|7cb95284aba215c2e1bbb70f545867f3d9295d58' \
+  "$pinned_manifest"; then
+  die 'generated manifest still contains an unavailable CodeLinaro revision'
 fi
 
 git -C "$pinned_repo" init -q -b main

@@ -64,6 +64,8 @@ jobs:
           bash "$GITHUB_WORKSPACE/scripts/prepare-manifest.sh" \
             "$GITHUB_WORKSPACE/work" "$GITHUB_WORKSPACE/official-manifest.xml"
           pinned_manifest_repo="$GITHUB_WORKSPACE/work/pinned-manifest-repo"
+          cp "$pinned_manifest_repo/$MANIFEST_FILE" \
+            "$GITHUB_WORKSPACE/pinned-manifest.xml"
           pinned_manifest_commit=$(git -C "$pinned_manifest_repo" rev-parse HEAD)
           mkdir -p "$SOURCE_DIR"
           cd "$SOURCE_DIR"
@@ -151,7 +153,8 @@ jobs:
           package="OnePlus15T-OFFICIAL-CLEAN-6.12.38-baseline-r${GITHUB_RUN_NUMBER}.zip"
           (cd "$ak3" && zip -q -r "$GITHUB_WORKSPACE/dist/$package" .)
           (cd dist && sha256sum "$package" > SHA256SUMS)
-          cp manifest.lock official-manifest.xml resolved-manifest.xml \
+          cp manifest.lock official-manifest.xml pinned-manifest.xml \
+            resolved-manifest.xml \
             final.config kernelrelease.txt \
             image-file.txt image.sha256 build.log dist/
 
@@ -193,6 +196,7 @@ jobs:
             dist/SHA256SUMS
             dist/manifest.lock
             dist/official-manifest.xml
+            dist/pinned-manifest.xml
             dist/resolved-manifest.xml
             dist/final.config
             dist/kernelrelease.txt

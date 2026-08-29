@@ -10,6 +10,9 @@ SOC_COMMIT=0cfd948c0d9507d0bc04706f6f919a25787c2d89
 DEVICE_REPO=https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8850.git
 DEVICE_COMMIT=d447f713d6403f707a2910383495f4ada98cfa4d
 
+AOSP_CLANG_REPO=https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86
+AOSP_CLANG_COMMIT=3f0de8cbff0a43270ae5b2b626550958287102b2
+
 EXPECTED_KERNEL_VERSION=6.12.38
 EXPECTED_ANDROID_BRANCH=android16-6.12
 EXPECTED_KMI_GENERATION=5
@@ -18,4 +21,3 @@ EXPECTED_RUST_VERSION=1.82.0
 
 ANYKERNEL_REPO=https://github.com/cctv18/AnyKernel3.git
 ANYKERNEL_COMMIT=091ee586e1a5d5c1c1c957d48fe7c61638d04dc4
-
