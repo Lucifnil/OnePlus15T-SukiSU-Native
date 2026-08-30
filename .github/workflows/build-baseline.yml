@@ -472,6 +472,7 @@ jobs:
           fi
           if [[ "$variant" == sukisu_susfs_builtin ]]; then
             cp "$SUSFS_SUKISU_ADAPT_PATCH" "$SUSFS_DISABLE_LOG_PATCH" \
+              "$SUSFS_SELINUX_WRAPPER_PATCH" \
               susfs-common-applied.patch susfs-sukisu-applied.patch \
               susfs-official-common.patch susfs-official-ksu.patch \
               susfs.c susfs.h susfs_def.h dist/

@@ -82,16 +82,22 @@ patch --batch --forward --fuzz=2 --no-backup-if-mismatch \
 
 adapt_patch="$PROJECT_DIR/$SUSFS_SUKISU_ADAPT_PATCH"
 log_patch="$PROJECT_DIR/$SUSFS_DISABLE_LOG_PATCH"
+selinux_wrapper_patch="$PROJECT_DIR/$SUSFS_SELINUX_WRAPPER_PATCH"
 [[ "$(sha256sum "$adapt_patch" | awk '{print $1}')" == \
   "$SUSFS_SUKISU_ADAPT_PATCH_SHA256" ]] || \
   die 'SukiSU SUSFS adaptation patch checksum mismatch'
 [[ "$(sha256sum "$log_patch" | awk '{print $1}')" == \
   "$SUSFS_DISABLE_LOG_PATCH_SHA256" ]] || \
   die 'SUSFS log policy patch checksum mismatch'
+[[ "$(sha256sum "$selinux_wrapper_patch" | awk '{print $1}')" == \
+  "$SUSFS_SELINUX_WRAPPER_PATCH_SHA256" ]] || \
+  die 'SUSFS SELinux wrapper patch checksum mismatch'
 git -C "$KSU_DIR" apply --check "$adapt_patch"
 git -C "$KSU_DIR" apply --whitespace=error-all "$adapt_patch"
 git -C "$KSU_DIR" apply --check "$log_patch"
 git -C "$KSU_DIR" apply --whitespace=error-all "$log_patch"
+git -C "$KSU_DIR" apply --check "$selinux_wrapper_patch"
+git -C "$KSU_DIR" apply --whitespace=error-all "$selinux_wrapper_patch"
 
 # v2.1.0's official patch contains a few harmless trailing blanks. Normalize
 # only files changed by that immutable patch so CI can enforce diff hygiene.
