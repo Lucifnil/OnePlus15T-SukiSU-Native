@@ -83,6 +83,7 @@ patch --batch --forward --fuzz=2 --no-backup-if-mismatch \
 adapt_patch="$PROJECT_DIR/$SUSFS_SUKISU_ADAPT_PATCH"
 log_patch="$PROJECT_DIR/$SUSFS_DISABLE_LOG_PATCH"
 selinux_wrapper_patch="$PROJECT_DIR/$SUSFS_SELINUX_WRAPPER_PATCH"
+uts_replacement_patch="$PROJECT_DIR/$SUSFS_UTS_REPLACEMENT_PATCH"
 [[ "$(sha256sum "$adapt_patch" | awk '{print $1}')" == \
   "$SUSFS_SUKISU_ADAPT_PATCH_SHA256" ]] || \
   die 'SukiSU SUSFS adaptation patch checksum mismatch'
@@ -92,12 +93,17 @@ selinux_wrapper_patch="$PROJECT_DIR/$SUSFS_SELINUX_WRAPPER_PATCH"
 [[ "$(sha256sum "$selinux_wrapper_patch" | awk '{print $1}')" == \
   "$SUSFS_SELINUX_WRAPPER_PATCH_SHA256" ]] || \
   die 'SUSFS SELinux wrapper patch checksum mismatch'
+[[ "$(sha256sum "$uts_replacement_patch" | awk '{print $1}')" == \
+  "$SUSFS_UTS_REPLACEMENT_PATCH_SHA256" ]] || \
+  die 'SUSFS UTS replacement patch checksum mismatch'
 git -C "$KSU_DIR" apply --check "$adapt_patch"
 git -C "$KSU_DIR" apply --whitespace=error-all "$adapt_patch"
 git -C "$KSU_DIR" apply --check "$log_patch"
 git -C "$KSU_DIR" apply --whitespace=error-all "$log_patch"
 git -C "$KSU_DIR" apply --check "$selinux_wrapper_patch"
 git -C "$KSU_DIR" apply --whitespace=error-all "$selinux_wrapper_patch"
+git -C "$KSU_DIR" apply --check "$uts_replacement_patch"
+git -C "$KSU_DIR" apply --whitespace=error-all "$uts_replacement_patch"
 
 # v2.1.0's official patch contains a few harmless trailing blanks. Normalize
 # only files changed by that immutable patch so CI can enforce diff hygiene.
@@ -127,6 +133,11 @@ grep -A5 '^config KSU_SUSFS_ENABLE_LOG$' "$KSU_DIR/kernel/Kconfig" | \
 grep -Fq 'susfs_init();' "$KSU_DIR/kernel/core/init.c"
 ! grep -Fq 'syscall_hook_manager_init' "$KSU_DIR/kernel/core/init.c"
 ! grep -Fq 'feature/uts_spoof.o' "$KSU_DIR/kernel/Kbuild"
+! grep -Fq 'feature/uts_spoof.h' "$KSU_DIR/kernel/supercall/dispatch.c"
+! grep -Fq 'KSU_IOCTL_SET_SPOOF_VERSION' \
+  "$KSU_DIR/kernel/supercall/dispatch.c"
+grep -Fq 'CMD_SUSFS_SET_UNAME' "$KSU_DIR/kernel/supercall/dispatch.c"
+grep -Fq 'susfs_set_uname(arg);' "$KSU_DIR/kernel/supercall/dispatch.c"
 
 printf 'Applied pinned SUSFS v%s to official Common and SukiSU v%s\n' \
   "$SUSFS_VERSION" "${SUKISU_TAG#v}"
