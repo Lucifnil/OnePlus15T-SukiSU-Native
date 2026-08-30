@@ -32,15 +32,17 @@ require_blob "$SUSFS_KERNEL_PATCH" "$SUSFS_KERNEL_PATCH_BLOB"
 require_blob "$SUSFS_KSU_PATCH" "$SUSFS_KSU_PATCH_BLOB"
 require_blob "$SUSFS_SOURCE" "$SUSFS_SOURCE_BLOB"
 require_blob "$SUSFS_HEADER" "$SUSFS_HEADER_BLOB"
+require_blob "$SUSFS_DEF_HEADER" "$SUSFS_DEF_HEADER_BLOB"
 
 kernel_patch=$(mktemp)
 ksu_patch=$(mktemp)
 susfs_source=$(mktemp)
 susfs_header=$(mktemp)
+susfs_def_header=$(mktemp)
 filtered_ksu_patch=$(mktemp)
 cleanup() {
   rm -f "$kernel_patch" "$ksu_patch" "$susfs_source" "$susfs_header" \
-    "$filtered_ksu_patch"
+    "$susfs_def_header" "$filtered_ksu_patch"
 }
 trap cleanup EXIT
 
@@ -50,12 +52,15 @@ git -C "$SUSFS_DIR" show "$SUSFS_COMMIT:$SUSFS_KERNEL_PATCH" > "$kernel_patch"
 git -C "$SUSFS_DIR" show "$SUSFS_COMMIT:$SUSFS_KSU_PATCH" > "$ksu_patch"
 git -C "$SUSFS_DIR" show "$SUSFS_COMMIT:$SUSFS_SOURCE" > "$susfs_source"
 git -C "$SUSFS_DIR" show "$SUSFS_COMMIT:$SUSFS_HEADER" > "$susfs_header"
+git -C "$SUSFS_DIR" show "$SUSFS_COMMIT:$SUSFS_DEF_HEADER" > \
+  "$susfs_def_header"
 
 grep -Fqx "#define SUSFS_VERSION \"v$SUSFS_VERSION\"" \
   "$susfs_header" || die 'unexpected SUSFS version header'
 
 cp "$susfs_source" "$COMMON_DIR/fs/susfs.c"
 cp "$susfs_header" "$COMMON_DIR/include/linux/susfs.h"
+cp "$susfs_def_header" "$COMMON_DIR/include/linux/susfs_def.h"
 
 # GNU patch is intentional here: the official SUSFS patches target upstream
 # GKI/KernelSU and require bounded context offsets on the pinned OnePlus and
@@ -94,7 +99,8 @@ while IFS= read -r path; do
   sed -i 's/[[:space:]]\+$//' "$COMMON_DIR/$path"
 done < <(git -C "$COMMON_DIR" diff --name-only --diff-filter=AM)
 sed -i 's/[[:space:]]\+$//' "$COMMON_DIR/fs/susfs.c" \
-  "$COMMON_DIR/include/linux/susfs.h"
+  "$COMMON_DIR/include/linux/susfs.h" \
+  "$COMMON_DIR/include/linux/susfs_def.h"
 while IFS= read -r path; do
   sed -i 's/[[:space:]]\+$//' "$KSU_DIR/$path"
 done < <(git -C "$KSU_DIR" diff --name-only --diff-filter=AM)

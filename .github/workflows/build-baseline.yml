@@ -280,6 +280,8 @@ jobs:
                 "$susfs_root/$SUSFS_KERNEL_PATCH" > "$susfs_common_file_list"
               printf '%s\n%s\n' "${SUSFS_SOURCE#kernel_patches/}" \
                 "${SUSFS_HEADER#kernel_patches/}" >> "$susfs_common_file_list"
+              printf '%s\n' "${SUSFS_DEF_HEADER#kernel_patches/}" >> \
+                "$susfs_common_file_list"
               sort -u -o "$susfs_common_file_list" "$susfs_common_file_list"
               while IFS= read -r path; do
                 if [[ -f "common/$path" ]]; then
@@ -302,6 +304,8 @@ jobs:
                 "$GITHUB_WORKSPACE/susfs.c"
               cp "$susfs_root/$SUSFS_HEADER" \
                 "$GITHUB_WORKSPACE/susfs.h"
+              cp "$susfs_root/$SUSFS_DEF_HEADER" \
+                "$GITHUB_WORKSPACE/susfs_def.h"
             fi
 
             ksu_driver_makefile_backup=$(mktemp)
@@ -470,7 +474,7 @@ jobs:
             cp "$SUSFS_SUKISU_ADAPT_PATCH" "$SUSFS_DISABLE_LOG_PATCH" \
               susfs-common-applied.patch susfs-sukisu-applied.patch \
               susfs-official-common.patch susfs-official-ksu.patch \
-              susfs.c susfs.h dist/
+              susfs.c susfs.h susfs_def.h dist/
           fi
           if [[ "$diagnostic" == true ]]; then
             printf '%s\n' \
