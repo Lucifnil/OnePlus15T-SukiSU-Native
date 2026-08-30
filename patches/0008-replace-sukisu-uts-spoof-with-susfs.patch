@@ -9,7 +9,7 @@ diff --git a/kernel/supercall/dispatch.c b/kernel/supercall/dispatch.c
  
  #ifdef CONFIG_KPM
  #include "kpm/kpm.h"
-@@ -714,21 +713,6 @@ static int do_get_sulog_fd(void __user *arg)
+@@ -714,20 +713,6 @@ static int do_get_sulog_fd(void __user *arg)
      return ksu_install_sulog_fd();
  }
  
@@ -27,11 +27,10 @@ diff --git a/kernel/supercall/dispatch.c b/kernel/supercall/dispatch.c
 -    return ksu_set_spoof_version(cmd.release[0] != '\0' ? cmd.release : NULL,
 -                                 cmd.version[0] != '\0' ? cmd.version : NULL);
 -}
--
+ 
  static int list_try_umount(void __user *arg)
  {
-     struct ksu_list_try_umount_cmd cmd;
-@@ -1008,12 +992,6 @@ static struct cmd_handler handlers[] = {
+@@ -1008,12 +993,6 @@ static const struct ksu_ioctl_cmd_map ksu_ioctl_handlers[] = {
          .handler = do_get_sulog_fd,
          .perm_check = only_root
      },
@@ -41,6 +40,6 @@ diff --git a/kernel/supercall/dispatch.c b/kernel/supercall/dispatch.c
 -        .handler = do_set_spoof_version,
 -        .perm_check = only_root
 -    },
-     {
+     { 
          .cmd = KSU_IOCTL_GET_FULL_VERSION,
          .name = "GET_FULL_VERSION",
