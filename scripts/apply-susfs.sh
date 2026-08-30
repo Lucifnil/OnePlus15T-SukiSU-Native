@@ -91,6 +91,11 @@ git -C "$KSU_DIR" apply --whitespace=error-all "$log_patch"
 # v2.1.0's official patch contains a few harmless trailing blanks. Normalize
 # only files changed by that immutable patch so CI can enforce diff hygiene.
 while IFS= read -r path; do
+  sed -i 's/[[:space:]]\+$//' "$COMMON_DIR/$path"
+done < <(git -C "$COMMON_DIR" diff --name-only --diff-filter=AM)
+sed -i 's/[[:space:]]\+$//' "$COMMON_DIR/fs/susfs.c" \
+  "$COMMON_DIR/include/linux/susfs.h"
+while IFS= read -r path; do
   sed -i 's/[[:space:]]\+$//' "$KSU_DIR/$path"
 done < <(git -C "$KSU_DIR" diff --name-only --diff-filter=AM)
 sed -i 's/^[[:space:]]*just disable this feature/\t  just disable this feature/' \
