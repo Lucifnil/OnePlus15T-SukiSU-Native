@@ -32,19 +32,24 @@ DWARF 设置后，抽查到的 434 个公共模块 CRC 与原厂模块全部一�
 
 ## 真机验证状态
 
-`baseline` r22 和 `sukisu_builtin` r23 均已在 PLZ110
-`PLZ110_16.0.10.500_CN01` 上完成真机启动验证。r23 已写入活动 `boot_a`，并在
-两次完整重启后确认：
+`baseline` r22、`sukisu_builtin` r23 和 `sukisu_susfs_builtin` r30 均已在
+PLZ110 `PLZ110_16.0.10.500_CN01` 上完成真机启动验证。r30 先通过
+`fastboot boot` 临时启动，再以带 AVB footer 的镜像写入活动 `boot_a`，冷启动后
+确认：
 
 - 内核版本严格为
   `6.12.38-android16-5-g844001fb8721-ab14552068-4k`；
 - SukiSU Ultra 显示 `工作中 <Built-in>`，驱动和管理器版本同为 `40796`，
   完整版本为 `v4.1.3-0ca744a8@main`，无版本不匹配警告；
+- SuSFS 显示 `v2.1.0 (Tracepoint Syscall Redirect)`；`post-fs-data`、`services`
+  和 `boot-completed` 三个 ksud 阶段均成功，Root allowlist 正常加载；
 - 668 个模块正常加载，仅比一次原厂快照少两个按需模块；`cfg80211`、
   `mac80211`、`qca_cld3_peach_v2` 和蓝牙模块均正常；
-- Wi-Fi 能连接并访问互联网，5G 移动数据能够独立返回 HTTP 204；
+- Wi-Fi 和 5G 移动数据均能独立联网，IP 与 DNS 复测无丢包；
 - 蓝牙、48 kHz 音频栈、振动器、加速度计、陀螺仪、四个相机设备和
-  1216×2640/120 Hz 显示链路均正常。
+  1216×2640/60–165 Hz 显示链路均正常；
+- SELinux 保持 `Enforcing`，pstore 为空，未发现 panic、Oops、watchdog bite、
+  ANR 或由 r30 引入的驱动回归。
 
 ## 刷入说明
 
