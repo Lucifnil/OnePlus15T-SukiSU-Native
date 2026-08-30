@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-CONFIG=${1:?usage: verify-config.sh CONFIG [baseline|sukisu_builtin]}
+CONFIG=${1:?usage: verify-config.sh CONFIG [baseline|sukisu_builtin|sukisu_susfs_builtin]}
 VARIANT=${2:-baseline}
 
 # shellcheck source=lib.sh
@@ -25,6 +25,20 @@ case "$VARIANT" in
   sukisu_builtin)
     require_config_y "$CONFIG" CONFIG_KSU
     require_config_absent "$CONFIG" '^CONFIG_(KPM|KSU_SUSFS)(=|_)'
+    ;;
+  sukisu_susfs_builtin)
+    require_config_y "$CONFIG" CONFIG_KSU
+    require_config_y "$CONFIG" CONFIG_KSU_SUSFS
+    require_config_y "$CONFIG" CONFIG_KSU_SUSFS_SUS_PATH
+    require_config_y "$CONFIG" CONFIG_KSU_SUSFS_SUS_MOUNT
+    require_config_y "$CONFIG" CONFIG_KSU_SUSFS_SUS_KSTAT
+    require_config_y "$CONFIG" CONFIG_KSU_SUSFS_SPOOF_UNAME
+    require_config_y "$CONFIG" CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS
+    require_config_y "$CONFIG" CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG
+    require_config_y "$CONFIG" CONFIG_KSU_SUSFS_OPEN_REDIRECT
+    require_config_y "$CONFIG" CONFIG_KSU_SUSFS_SUS_MAP
+    require_config_absent "$CONFIG" '^CONFIG_KPM(=|_)'
+    require_config_absent "$CONFIG" '^CONFIG_KSU_SUSFS_ENABLE_LOG=y$'
     ;;
   *)
     die "unknown kernel variant: $VARIANT"

@@ -5,11 +5,14 @@
 `844001fb8721c3ee305f17a51628744997f787a0`，由官方 Kleaf
 `//common:kernel_aarch64_dist` 目标构建 4K Android 16 GKI。
 
-项目提供两个 CI 变体：
+项目提供三个 CI 变体：
 
 - `baseline`：不包含 KernelSU、SukiSU、SUSFS、KPM 或性能补丁的纯净基线；
 - `sukisu_builtin`：在同一原厂 Common 提交上集成官方 SukiSU Ultra
   `v4.1.3`，使用 `CONFIG_KSU=y` 的 Built-in 后端，不启用 SUSFS 或 KPM。
+- `sukisu_susfs_builtin`：在上述 Built-in 版本上集成官方 SUSFS `v2.1.0`，
+  启用隐藏功能、禁用内核日志且不启用 KPM。SUSFS 官方明确标记为实验性功能，
+  此变体只有通过临时启动和完整真机回归后才会作为正式 Release 发布。
 
 ## 已确认的兼容性根因
 
@@ -63,8 +66,9 @@ footer。仅把 Kleaf 的 `Image` 与空 ramdisk 打包后补零到分区大小�
   的不可变官方提交提供；Clang 精确固定为 r536225 build `14043575`；
 - 官方 manifest 漏列但 Kleaf 分析阶段必需的 `libcap`、`libcap-ng` 由对应的
   Google AOSP Android 16 不可变提交补齐；
-- `baseline` 会拒绝 KSU；`sukisu_builtin` 只允许锁定版本的 Built-in KSU，
-  两者都会拒绝 SUSFS、KPM、ADIOS、ReKernel 和 TCP Brutal；
+- `baseline` 会拒绝 KSU；`sukisu_builtin` 只允许锁定版本的 Built-in KSU；
+  `sukisu_susfs_builtin` 还会逐项验证锁定的 SUSFS 功能并拒绝日志。三个变体
+  都会拒绝 KPM、ADIOS、ReKernel 和 TCP Brutal；
 - CI 会拒绝 Oplus 预编译 `vmlinux` 覆盖本次编译结果；
 - 原厂 Common 提交早于当前官方 Kleaf 对 `vmlinux_oki` 输出的要求，构建时仅应用
   一行官方后续修复，将本次生成的 `vmlinux` 原样复制为 `vmlinux_oki`；

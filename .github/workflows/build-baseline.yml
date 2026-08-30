@@ -11,6 +11,7 @@ on:
         options:
           - baseline
           - sukisu_builtin
+          - sukisu_susfs_builtin
       publish_release:
         description: Publish the verified AnyKernel3 baseline as a prerelease
         required: true
@@ -115,11 +116,11 @@ jobs:
           variant='${{ inputs.kernel_variant }}'
           diagnostic='${{ inputs.diagnostic_allow_shell }}'
           case "$variant" in
-            baseline|sukisu_builtin) ;;
+            baseline|sukisu_builtin|sukisu_susfs_builtin) ;;
             *) echo "ERROR: unknown kernel variant: $variant" >&2; exit 1 ;;
           esac
-          if [[ "$diagnostic" == true && "$variant" != sukisu_builtin ]]; then
-            echo 'ERROR: diagnostic shell requires sukisu_builtin' >&2
+          if [[ "$diagnostic" == true && "$variant" == baseline ]]; then
+            echo 'ERROR: diagnostic shell requires a SukiSU variant' >&2
             exit 1
           fi
           bazel_bin=prebuilts/kernel-build-tools/bazel/linux-x86_64/bazel
@@ -160,6 +161,8 @@ jobs:
           ksu_driver_makefile_backup=
           ksu_driver_kconfig_backup=
           ksu_driver_link=
+          susfs_common_backup=
+          susfs_common_file_list=
           cleanup() {
             cp "$stock_makefile_backup" "$stock_makefile"
             cp "$common_build_backup" "$common_build_file"
@@ -169,6 +172,21 @@ jobs:
               cp "$ksu_driver_kconfig_backup" common/drivers/Kconfig
               rm -f "$ksu_driver_link" "$ksu_driver_makefile_backup" \
                 "$ksu_driver_kconfig_backup"
+            fi
+            if [[ -n "$susfs_common_file_list" ]]; then
+              while IFS= read -r path; do
+                [[ -n "$path" ]] || continue
+                target=$(realpath -m "common/$path")
+                case "$target" in
+                  "$PWD/common/"*) ;;
+                  *) echo "ERROR: unsafe SUSFS cleanup path: $target" >&2; return 1 ;;
+                esac
+                rm -f -- "$target"
+                if [[ -f "$susfs_common_backup/$path" ]]; then
+                  mkdir -p "$(dirname "$target")"
+                  cp -a "$susfs_common_backup/$path" "$target"
+                fi
+              done < "$susfs_common_file_list"
             fi
             rm -f "$stock_makefile_backup" "$common_build_backup" \
               "$stamp_file_backup" \
@@ -207,7 +225,8 @@ jobs:
             "$workspace_status"
           git -C .. diff --check
 
-          if [[ "$variant" == sukisu_builtin ]]; then
+          if [[ "$variant" == sukisu_builtin || \
+                "$variant" == sukisu_susfs_builtin ]]; then
             # Reproduce the official setup.sh integration without executing a
             # mutable remote script. Fetch the stable tag's immutable commit,
             # then link only its kernel/ directory into the Common tree.
@@ -239,6 +258,51 @@ jobs:
               "KSU_VERSION_FULL := v${SUKISU_TAG#v}-${SUKISU_COMMIT:0:8}@main" \
               "$ksu_root/kernel/Kbuild"
             git -C "$ksu_root" diff --check
+
+            if [[ "$variant" == sukisu_susfs_builtin ]]; then
+              # Pin the official SUSFS tree to the last v2.1.0 compatibility
+              # commit accepted by the v4.1.3 manager. Never execute mutable
+              # remote integration scripts.
+              susfs_root="$PWD/SUSFS"
+              test ! -e "$susfs_root"
+              git init -q "$susfs_root"
+              git -C "$susfs_root" remote add origin "$SUSFS_REPO"
+              git -C "$susfs_root" fetch --depth=1 --no-tags origin \
+                "$SUSFS_COMMIT"
+              git -C "$susfs_root" checkout -q --detach FETCH_HEAD
+              test "$(git -C "$susfs_root" rev-parse HEAD)" = "$SUSFS_COMMIT"
+
+              # Save every Common file that the immutable patch may touch so
+              # the post-build stock-source verification can restore it.
+              susfs_common_backup=$(mktemp -d)
+              susfs_common_file_list=$(mktemp)
+              awk '/^\+\+\+ b\// { print substr($2, 3) }' \
+                "$susfs_root/$SUSFS_KERNEL_PATCH" > "$susfs_common_file_list"
+              printf '%s\n%s\n' "${SUSFS_SOURCE#kernel_patches/}" \
+                "${SUSFS_HEADER#kernel_patches/}" >> "$susfs_common_file_list"
+              sort -u -o "$susfs_common_file_list" "$susfs_common_file_list"
+              while IFS= read -r path; do
+                if [[ -f "common/$path" ]]; then
+                  mkdir -p "$susfs_common_backup/$(dirname "$path")"
+                  cp -a "common/$path" "$susfs_common_backup/$path"
+                fi
+              done < "$susfs_common_file_list"
+
+              bash "$GITHUB_WORKSPACE/scripts/apply-susfs.sh" \
+                "$PWD/common" "$ksu_root" "$susfs_root"
+              git -C common diff --binary > \
+                "$GITHUB_WORKSPACE/susfs-common-applied.patch"
+              git -C "$ksu_root" diff --binary > \
+                "$GITHUB_WORKSPACE/susfs-sukisu-applied.patch"
+              cp "$susfs_root/$SUSFS_KERNEL_PATCH" \
+                "$GITHUB_WORKSPACE/susfs-official-common.patch"
+              cp "$susfs_root/$SUSFS_KSU_PATCH" \
+                "$GITHUB_WORKSPACE/susfs-official-ksu.patch"
+              cp "$susfs_root/$SUSFS_SOURCE" \
+                "$GITHUB_WORKSPACE/susfs.c"
+              cp "$susfs_root/$SUSFS_HEADER" \
+                "$GITHUB_WORKSPACE/susfs.h"
+            fi
 
             ksu_driver_makefile_backup=$(mktemp)
             ksu_driver_kconfig_backup=$(mktemp)
@@ -277,9 +341,14 @@ jobs:
             echo 'ERROR: Oplus prebuilt vmlinux replaced the source-built kernel' >&2
             exit 1
           fi
-          if [[ "$variant" == sukisu_builtin ]]; then
+          if [[ "$variant" == sukisu_builtin || \
+                "$variant" == sukisu_susfs_builtin ]]; then
             grep -Fq -- \
               "-- SukiSU-Ultra version: $EXPECTED_SUKISU_VERSION_CODE [v${SUKISU_TAG#v}-${SUKISU_COMMIT:0:8}@main]" \
+              "$GITHUB_WORKSPACE/build.log"
+          fi
+          if [[ "$variant" == sukisu_susfs_builtin ]]; then
+            grep -Fq -- "-- SUSFS_VERSION: v$SUSFS_VERSION" \
               "$GITHUB_WORKSPACE/build.log"
           fi
           module_symvers=$(find -L bazel-bin/common -type f \
@@ -332,10 +401,16 @@ jobs:
           kernel_variant=$variant
           diagnostic_allow_shell=$diagnostic
           EOF
-          if [[ "$variant" == sukisu_builtin ]]; then
+          if [[ "$variant" == sukisu_builtin || \
+                "$variant" == sukisu_susfs_builtin ]]; then
             printf 'sukisu_tag=%s\nsukisu_commit=%s\nsukisu_version_code=%s\n' \
               "$SUKISU_TAG" "$SUKISU_COMMIT" \
               "$EXPECTED_SUKISU_VERSION_CODE" >> stock-baseline.txt
+          fi
+          if [[ "$variant" == sukisu_susfs_builtin ]]; then
+            printf 'susfs_branch=%s\nsusfs_commit=%s\nsusfs_version=%s\n' \
+              "$SUSFS_BRANCH" "$SUSFS_COMMIT" "$SUSFS_VERSION" \
+              >> stock-baseline.txt
           fi
 
           bash scripts/verify-source.sh "$SOURCE_DIR"
@@ -356,8 +431,15 @@ jobs:
           diagnostic='${{ inputs.diagnostic_allow_shell }}'
           cp "$KLEAF_DIST/Image" "$ak3/Image"
           if [[ "$diagnostic" == true ]]; then
-            cp packaging/anykernel-sukisu.sh "$ak3/anykernel.sh"
+            if [[ "$variant" == sukisu_susfs_builtin ]]; then
+              cp packaging/anykernel-sukisu-susfs.sh "$ak3/anykernel.sh"
+            else
+              cp packaging/anykernel-sukisu.sh "$ak3/anykernel.sh"
+            fi
             package="OnePlus15T-SUKISU-DIAGNOSTIC-ALLOW-SHELL-6.12.38-r${GITHUB_RUN_NUMBER}.zip"
+          elif [[ "$variant" == sukisu_susfs_builtin ]]; then
+            cp packaging/anykernel-sukisu-susfs.sh "$ak3/anykernel.sh"
+            package="OnePlus15T-SUKISU-SUSFS-BUILTIN-6.12.38-r${GITHUB_RUN_NUMBER}.zip"
           elif [[ "$variant" == sukisu_builtin ]]; then
             cp packaging/anykernel-sukisu.sh "$ak3/anykernel.sh"
             package="OnePlus15T-SUKISU-BUILTIN-6.12.38-r${GITHUB_RUN_NUMBER}.zip"
@@ -380,8 +462,15 @@ jobs:
           fi
           cp "$STOCK_BUILD_COMPAT_PATCH" "$STOCK_SCMVERSION_PATCH" \
             "$STOCK_MODULE_POLICY_PATCH" dist/
-          if [[ "$variant" == sukisu_builtin ]]; then
+          if [[ "$variant" == sukisu_builtin || \
+                "$variant" == sukisu_susfs_builtin ]]; then
             cp "$SUKISU_BUILD_VERSION_PATCH" dist/
+          fi
+          if [[ "$variant" == sukisu_susfs_builtin ]]; then
+            cp "$SUSFS_SUKISU_ADAPT_PATCH" "$SUSFS_DISABLE_LOG_PATCH" \
+              susfs-common-applied.patch susfs-sukisu-applied.patch \
+              susfs-official-common.patch susfs-official-ksu.patch \
+              susfs.c susfs.h dist/
           fi
           if [[ "$diagnostic" == true ]]; then
             printf '%s\n' \
