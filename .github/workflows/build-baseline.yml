@@ -291,7 +291,8 @@ jobs:
               done < "$susfs_common_file_list"
 
               bash "$GITHUB_WORKSPACE/scripts/apply-susfs.sh" \
-                "$PWD/common" "$ksu_root" "$susfs_root"
+                "$PWD/common" "$ksu_root" "$susfs_root" | \
+                tee "$GITHUB_WORKSPACE/susfs-integration.log"
               git -C common diff --binary > \
                 "$GITHUB_WORKSPACE/susfs-common-applied.patch"
               git -C "$ksu_root" diff --binary > \
@@ -352,8 +353,9 @@ jobs:
               "$GITHUB_WORKSPACE/build.log"
           fi
           if [[ "$variant" == sukisu_susfs_builtin ]]; then
-            grep -Fq -- "-- SUSFS_VERSION: v$SUSFS_VERSION" \
-              "$GITHUB_WORKSPACE/build.log"
+            grep -Fqx \
+              "Applied pinned SUSFS v$SUSFS_VERSION to official Common and SukiSU v${SUKISU_TAG#v}" \
+              "$GITHUB_WORKSPACE/susfs-integration.log"
           fi
           module_symvers=$(find -L bazel-bin/common -type f \
             -name Module.symvers -print -quit 2>/dev/null || true)
@@ -476,7 +478,7 @@ jobs:
               "$SUSFS_UTS_REPLACEMENT_PATCH" \
               susfs-common-applied.patch susfs-sukisu-applied.patch \
               susfs-official-common.patch susfs-official-ksu.patch \
-              susfs.c susfs.h susfs_def.h dist/
+              susfs-integration.log susfs.c susfs.h susfs_def.h dist/
           fi
           if [[ "$diagnostic" == true ]]; then
             printf '%s\n' \
