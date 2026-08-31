@@ -66,7 +66,7 @@ VENDOR_BTF_COMPAT_TYPE_COUNT=164887
 VENDOR_BTF_COMPAT_TYPE_LEN=4186436
 VENDOR_BTF_COMPAT_STRING_LEN=2724181
 VENDOR_BTF_COMPAT_PATCH=patches/0009-use-plz110-vendor-compatible-btf.patch
-VENDOR_BTF_COMPAT_PATCH_SHA256=a42d7ecd026cccb0cc588e82dd7e3ff875bcd48d83c05a2bc4ea72795a21768a
+VENDOR_BTF_COMPAT_PATCH_SHA256=369c6eef212f9c0da6136b11c61116cef8c2bbfde343cb91648811a9dd770d23
 
 # Latest stable official SukiSU Ultra release. The kernel sources are linked
 # into the official OnePlus Common tree only for the sukisu_builtin variant.

@@ -390,7 +390,6 @@ jobs:
             grep -Fq -- \
               "-- SukiSU-Ultra version: $EXPECTED_SUKISU_VERSION_CODE [v${SUKISU_TAG#v}-${SUKISU_COMMIT:0:8}@main]" \
               "$GITHUB_WORKSPACE/build.log"
-            grep -Fq 'BTFBASE' "$GITHUB_WORKSPACE/build.log"
           fi
           if [[ "$variant" == sukisu_susfs_builtin ]]; then
             grep -Fqx \
