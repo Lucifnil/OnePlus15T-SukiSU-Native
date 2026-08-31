@@ -37,6 +37,12 @@ r30 的高负载游戏复测又定位到一项独立问题：原厂
 `CONFIG_MODULE_ALLOW_BTF_MISMATCH=y` 继续加载模块，却无法注册模块 BTF，随后
 `hmbird_kfunc_register` 失败，风驰 BPF 调度器以 `-EINVAL` 停止。
 
+这是 PLZ110 系统级的厂商 split-BTF/Hmbird 兼容问题，不是某个游戏的专用问题。
+`oplus_bsp_sched_ext.ko` 和 `oplusHmbirdBpfManager` 为所有相应游戏场景共用；因此
+任何依赖这条 Hmbird/`sched_ext` 链路的游戏都可能受到 r30 故障影响。项目没有
+加入《三角洲行动》包名判断或专用频率、温控、调度参数；该游戏仅作为最先暴露
+问题并验证 r33 修复的高负载测试样本。
+
 修复构建会在最终链接前注入由同一官方提交、同一配置和同一锁定工具链生成的
 纯净源码基线 BTF，再正常执行 `resolve_btfids`。CI 同时锁定 BTF 哈希、类型数、
 类型区和字符串区长度，并禁止此模式下修改任何已跟踪的类型定义头文件。这样既
