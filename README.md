@@ -30,10 +30,23 @@ GKI/厂商模块；公开目标的保护列表会拒绝其中 103 个模块。�
 的实际策略一致。配合原厂 Clang build `14043575`、GENDWARFKSYMS 和 Zstd
 DWARF 设置后，抽查到的 434 个公共模块 CRC 与原厂模块全部一致。
 
+r30 的高负载游戏复测又定位到一项独立问题：原厂
+`oplus_bsp_sched_ext.ko` 携带 split BTF，其类型引用以原厂
+`vmlinux` 的 164887 个基础类型为固定 ID 空间。普通源码基线仍保持该空间，
+但 Built-in SukiSU/SUSFS 让自动生成的 BTF 增至 165497 个类型。内核因
+`CONFIG_MODULE_ALLOW_BTF_MISMATCH=y` 继续加载模块，却无法注册模块 BTF，随后
+`hmbird_kfunc_register` 失败，风驰 BPF 调度器以 `-EINVAL` 停止。
+
+修复构建会在最终链接前注入由同一官方提交、同一配置和同一锁定工具链生成的
+纯净源码基线 BTF，再正常执行 `resolve_btfids`。CI 同时锁定 BTF 哈希、类型数、
+类型区和字符串区长度，并禁止此模式下修改任何已跟踪的类型定义头文件。这样既
+保持厂商 split BTF 所需的精确 ID 空间，也不会把原厂固件中的二进制 BTF 当作
+构建输入。
+
 ## 真机验证状态
 
 `baseline` r22、`sukisu_builtin` r23 和 `sukisu_susfs_builtin` r30 均已在
-PLZ110 `PLZ110_16.0.10.500_CN01` 上完成真机启动验证。r30 先通过
+PLZ110 `PLZ110_16.0.10.500_CN01` 上完成基础启动验证。r30 先通过
 `fastboot boot` 临时启动，再以带 AVB footer 的镜像写入活动 `boot_a`，冷启动后
 确认：
 
@@ -50,6 +63,11 @@ PLZ110 `PLZ110_16.0.10.500_CN01` 上完成真机启动验证。r30 先通过
   1216×2640/60–165 Hz 显示链路均正常；
 - SELinux 保持 `Enforcing`，pstore 为空，未发现 panic、Oops、watchdog bite、
   ANR 或由 r30 引入的驱动回归。
+
+上述基础验证没有覆盖风驰 split BTF。后续《三角洲行动》实测确认 r30 的 Hmbird
+管理器停止、游戏 HAL 持续提交 critical-thread 失败，并在约 6 W 功耗下出现 CPU
+传感器 90 °C 以上的异常调度状态。因此 r30 不再视为可发布版本；必须在新的
+BTF 兼容构建通过模块 BTF 注册、Hmbird 运行态和受控温度回归后才能替代它。
 
 ## 刷入说明
 
@@ -75,6 +93,8 @@ footer。仅把 Kleaf 的 `Image` 与空 ramdisk 打包后补零到分区大小�
   `sukisu_susfs_builtin` 还会逐项验证锁定的 SUSFS 功能并拒绝日志。三个变体
   都会拒绝 KPM、ADIOS、ReKernel 和 TCP Brutal；
 - CI 会拒绝 Oplus 预编译 `vmlinux` 覆盖本次编译结果；
+- SukiSU 变体会验证并注入锁定的纯净源码基线 BTF；最终 `vmlinux` 的 BTF
+  SHA-256 和 164887 个基础类型必须精确匹配，且 `resolve_btfids` 必须成功；
 - 原厂 Common 提交早于当前官方 Kleaf 对 `vmlinux_oki` 输出的要求，构建时仅应用
   一行官方后续修复，将本次生成的 `vmlinux` 原样复制为 `vmlinux_oki`；
 - CI 严格校验原厂内核 release、精确 Clang build、SukiSU 版本码、最终

@@ -3,4 +3,5 @@ kleaf-dist/
 dist/
 *.log
 *.zip
-
+__pycache__/
+*.pyc

@@ -69,7 +69,7 @@ jobs:
           sudo apt-get install --yes --no-install-recommends \
             bc binutils bison build-essential ca-certificates cpio dwarves \
             file flex git libdw-dev libelf-dev libssl-dev lld llvm python3 \
-            repo rsync unzip zip
+            repo rsync unzip zip zstd
 
       - name: Sync pinned OnePlus 15T source tree
         shell: bash
@@ -163,10 +163,18 @@ jobs:
           ksu_driver_link=
           susfs_common_backup=
           susfs_common_file_list=
+          vendor_btf_link_file=common/scripts/link-vmlinux.sh
+          vendor_btf_link_backup=
+          vendor_btf_file=common/scripts/plz110-vendor-base.btf
+          test ! -e "$vendor_btf_file"
           cleanup() {
             cp "$stock_makefile_backup" "$stock_makefile"
             cp "$common_build_backup" "$common_build_file"
             cp "$stamp_file_backup" "$stamp_file"
+            if [[ -n "$vendor_btf_link_backup" ]]; then
+              cp "$vendor_btf_link_backup" "$vendor_btf_link_file"
+              rm -f "$vendor_btf_link_backup" "$vendor_btf_file"
+            fi
             if [[ -n "$ksu_driver_makefile_backup" ]]; then
               cp "$ksu_driver_makefile_backup" common/drivers/Makefile
               cp "$ksu_driver_kconfig_backup" common/drivers/Kconfig
@@ -328,6 +336,37 @@ jobs:
               grep -A4 '^config KSU_DEBUG$' "$ksu_root/kernel/Kconfig" | \
                 grep -Fqx $'\tdefault y'
             fi
+
+            # Preserve the pristine source-built BTF namespace expected by
+            # PLZ110's shipping sched_ext split BTF. KernelSU and SUSFS add
+            # isolated sources and hooks but are forbidden from changing any
+            # tracked type-defining header while this compatibility mode is on.
+            changed_headers=$(git -C common diff --name-only --diff-filter=M \
+              HEAD -- '*.h' '*.hpp' '*.inc')
+            if [[ -n "$changed_headers" ]]; then
+              printf 'ERROR: BTF compatibility forbids modified tracked headers:\n%s\n' \
+                "$changed_headers" >&2
+              exit 1
+            fi
+            test "$(sha256sum "$GITHUB_WORKSPACE/$VENDOR_BTF_COMPAT_ASSET" | awk '{print $1}')" = \
+              "$VENDOR_BTF_COMPAT_ASSET_SHA256"
+            test "$(sha256sum "$GITHUB_WORKSPACE/$VENDOR_BTF_COMPAT_PATCH" | awk '{print $1}')" = \
+              "$VENDOR_BTF_COMPAT_PATCH_SHA256"
+            vendor_btf_link_backup=$(mktemp)
+            cp "$vendor_btf_link_file" "$vendor_btf_link_backup"
+            git -C common apply --check --unidiff-zero \
+              "$GITHUB_WORKSPACE/$VENDOR_BTF_COMPAT_PATCH"
+            git -C common apply --unidiff-zero --whitespace=error-all \
+              "$GITHUB_WORKSPACE/$VENDOR_BTF_COMPAT_PATCH"
+            zstd -q -d -f "$GITHUB_WORKSPACE/$VENDOR_BTF_COMPAT_ASSET" \
+              -o "$vendor_btf_file"
+            python3 "$GITHUB_WORKSPACE/scripts/verify-btf.py" \
+              "$vendor_btf_file" \
+              --sha256 "$VENDOR_BTF_COMPAT_SHA256" \
+              --type-count "$VENDOR_BTF_COMPAT_TYPE_COUNT" \
+              --type-len "$VENDOR_BTF_COMPAT_TYPE_LEN" \
+              --string-len "$VENDOR_BTF_COMPAT_STRING_LEN"
+            grep -Fq 'info BTFBASE' "$vendor_btf_link_file"
           fi
 
           mkdir -p "$KLEAF_DIST"
@@ -351,6 +390,7 @@ jobs:
             grep -Fq -- \
               "-- SukiSU-Ultra version: $EXPECTED_SUKISU_VERSION_CODE [v${SUKISU_TAG#v}-${SUKISU_COMMIT:0:8}@main]" \
               "$GITHUB_WORKSPACE/build.log"
+            grep -Fq 'BTFBASE' "$GITHUB_WORKSPACE/build.log"
           fi
           if [[ "$variant" == sukisu_susfs_builtin ]]; then
             grep -Fqx \
@@ -379,6 +419,21 @@ jobs:
           grep -Fqx 'CONFIG_DEBUG_INFO_COMPRESSED_ZSTD=y' final.config
           grep -Fq "CONFIG_CC_VERSION_TEXT=\"Android ($EXPECTED_CLANG_BUILD," \
             final.config
+
+          # The final linked vmlinux must expose the exact base type namespace
+          # used by the shipping sched_ext module's split BTF. resolve_btfids
+          # has already run inside link-vmlinux.sh at this point.
+          vmlinux="$KLEAF_DIST/vmlinux"
+          test -s "$vmlinux"
+          llvm_objcopy="$SOURCE_DIR/kernel_platform/prebuilts/clang/host/linux-x86/clang-$EXPECTED_CLANG_VERSION/bin/llvm-objcopy"
+          test -x "$llvm_objcopy"
+          "$llvm_objcopy" --dump-section .BTF=final-vmlinux.btf "$vmlinux"
+          python3 scripts/verify-btf.py final-vmlinux.btf \
+            --sha256 "$VENDOR_BTF_COMPAT_SHA256" \
+            --type-count "$VENDOR_BTF_COMPAT_TYPE_COUNT" \
+            --type-len "$VENDOR_BTF_COMPAT_TYPE_LEN" \
+            --string-len "$VENDOR_BTF_COMPAT_STRING_LEN"
+          zstd -q -19 -f final-vmlinux.btf -o final-vmlinux.btf.zst
           if [[ "$diagnostic" == true ]]; then
             grep -Fqx 'CONFIG_KSU_DEBUG=y' final.config
           else
@@ -404,6 +459,9 @@ jobs:
           build_compat_patch_sha256=$STOCK_BUILD_COMPAT_PATCH_SHA256
           scmversion_patch_sha256=$STOCK_SCMVERSION_PATCH_SHA256
           module_policy_patch_sha256=$STOCK_MODULE_POLICY_PATCH_SHA256
+          vendor_btf_compat_sha256=$VENDOR_BTF_COMPAT_SHA256
+          vendor_btf_compat_type_count=$VENDOR_BTF_COMPAT_TYPE_COUNT
+          vendor_btf_compat_patch_sha256=$VENDOR_BTF_COMPAT_PATCH_SHA256
           kernel_variant=$variant
           diagnostic_allow_shell=$diagnostic
           EOF
@@ -462,6 +520,7 @@ jobs:
             resolved-manifest.xml \
             final.config kernelrelease.txt \
             image-file.txt image.sha256 stock-baseline.txt build.log \
+            final-vmlinux.btf.zst \
             clang-version.txt dist/
           if [[ -s Module.symvers ]]; then
             cp Module.symvers dist/
@@ -470,7 +529,8 @@ jobs:
             "$STOCK_MODULE_POLICY_PATCH" dist/
           if [[ "$variant" == sukisu_builtin || \
                 "$variant" == sukisu_susfs_builtin ]]; then
-            cp "$SUKISU_BUILD_VERSION_PATCH" dist/
+            cp "$SUKISU_BUILD_VERSION_PATCH" \
+              "$VENDOR_BTF_COMPAT_PATCH" dist/
           fi
           if [[ "$variant" == sukisu_susfs_builtin ]]; then
             cp "$SUSFS_SUKISU_ADAPT_PATCH" "$SUSFS_DISABLE_LOG_PATCH" \
