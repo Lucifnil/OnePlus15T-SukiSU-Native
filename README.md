@@ -69,6 +69,19 @@ PLZ110 `PLZ110_16.0.10.500_CN01` 上完成基础启动验证。r30 先通过
 传感器 90 °C 以上的异常调度状态。因此 r30 不再视为可发布版本；必须在新的
 BTF 兼容构建通过模块 BTF 注册、Hmbird 运行态和受控温度回归后才能替代它。
 
+BTF 兼容修复已在诊断 r32 和关闭 `CONFIG_KSU_DEBUG` 的生产 r33 上完成定向真机
+验证。两个构建的最终 BTF 均精确保持 164887 个基础类型，离线合并原厂
+`oplus_bsp_sched_ext.ko` 成功；r33 写入活动 `boot_a` 后确认模块 BTF 已注册、
+`oplusHmbirdBpfManager` 持续运行且 `sys.oplus.hmbird.manager.enable=1`，未再出现
+BTF、kfunc 或 `-EINVAL` 错误。启动《三角洲行动》时场景稳定切换到
+`hmbird_II`，`sched_ext` 变为 `enabled`，退出后正常恢复 `none/disabled`。
+
+r32 的 60 秒启动/加载受控测试中，CPU 传感器峰值 69.4 °C、瞬时功耗峰值约
+5.29 W、机身峰值 32.2 °C、电池峰值 30.4 °C，未触发安全停止；r33 生产版的
+短时复核同样成功挂载调度器，CPU 峰值 71.7 °C。该结果只覆盖游戏启动和加载，
+不等同于完整对局压力回归，因此 r33 已验证本次风驰修复，但仍不会在完整对局
+复测前标记为正式 Release。
+
 ## 刷入说明
 
 优先在 SukiSU 管理器中刷入 Release 的 AnyKernel3 ZIP；它只更新 `boot`，不需要
